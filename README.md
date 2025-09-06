@@ -1,16 +1,16 @@
 # Mood Journal｜情緒日記 Web MVP
 
-以 React + Vite 打造的極簡情緒日記，作為「30 天 Vibe Coding」系列的第二篇章。當前為 MVP：資料暫存於瀏覽器 `localStorage`；後續將接入 Firebase Firestore 以支援雲端同步與登入。
+以 React + Vite 打造的極簡情緒日記，作為「30 天 Vibe Coding」系列的第二篇章。已接入 Firebase：支援 Google 登入與 Firestore 雲端儲存（路徑 `users/{uid}/diaries/{docId}`）。
 
 ## 功能特色
 
-### 當前（Day 11｜MVP）
+### 當前（Day 12 版）
 
-- 新增日記：輸入心情文字，點擊「存檔」新增
-- 自動日期：每筆含日期（預設為今天）
-- 清單瀏覽：依日期新 → 舊排序，顯示前 30 字摘要
-- 基本防呆：內容空白時無法存檔，存檔後自動清空輸入框
-- 本機儲存：資料保留於瀏覽器 `localStorage`，重整/關閉頁面仍在
+- Google 登入：LoginPage 提供 Google 登入按鈕
+- 保護路由：未登入導向 `/login`，登入後進入 `/`
+- 雲端儲存：使用者日記存於 Firestore `users/{uid}/diaries/{docId}`
+- 新增日記：DiaryPage 可新增；清單依日期新 → 舊排序
+- 基本防呆：內容空白無法存檔；存檔後自動清空輸入框
 
 ### 里程碑（Day 12–29）
 
@@ -38,7 +38,9 @@
 - 建置工具：Vite 7
 - 語言：JavaScript（可逐步導入 TypeScript）
 - 狀態管理：React Hooks（`useState`、`useEffect`、`useMemo`）
-- 資料儲存：`localStorage`
+- 路由：React Router v6
+- 身分驗證：Firebase Auth（Google）
+- 資料庫：Cloud Firestore（`users/{uid}/diaries/{docId}`）
 
 ## 快速開始
 
@@ -58,6 +60,23 @@ npm run build
 npm run preview
 ```
 
+### Firebase 設定
+
+1) 在 Firebase Console 建立專案與 Web App，啟用 Authentication（Google）與 Firestore。
+
+2) 建立 `.env.local`，填入專案設定（Vite 使用 `VITE_` 前綴）：
+
+```
+VITE_FIREBASE_API_KEY=xxx
+VITE_FIREBASE_AUTH_DOMAIN=xxx.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=xxx
+VITE_FIREBASE_APP_ID=1:xxxx:web:xxxx
+VITE_FIREBASE_STORAGE_BUCKET=xxx.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=xxxx
+```
+
+3) 重新啟動 dev server 後即可登入、寫入與讀取日記。
+
 ## 使用方式
 
 - 在輸入框輸入日記內容
@@ -65,10 +84,26 @@ npm run preview
 - 清單顯示日期與前 30 字摘要，依日期新 → 舊排序
 - 可重整或關閉頁面，資料仍保留於本機（`localStorage`）
 
+路由：
+- `/login`：登入頁（Google 登入）
+- `/`：日記頁（登入保護，含登出按鈕）
+
 ## 專案結構（重點）
 
-- `src/App.jsx`：主要畫面與邏輯
+- `src/App.jsx`：路由設定（含保護路由）
+- `src/pages/LoginPage.jsx`：登入頁
+- `src/pages/DiaryPage.jsx`：日記頁（Firestore CRUD）
+- `src/state/AuthContext.jsx`：使用者狀態（Firebase Auth）
+- `src/lib/firebase.js`：Firebase 初始化（Auth、Firestore）
 - `src/App.css`、`src/index.css`：樣式
 - `index.html`：頁面入口
 - `vite.config.js`：Vite 設定
 - `package.json`：腳本與相依套件
+
+### 主要使用的 Firebase API
+
+```js
+import { initializeApp } from 'firebase/app'
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth'
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore'
+```
