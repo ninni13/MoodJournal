@@ -23,6 +23,11 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore()
 
+// --- Debug whoami ---
+console.log('[whoami] env projectId   =', process.env.FIREBASE_PROJECT_ID)
+console.log('[whoami] sa clientEmail  =', (process.env.CLIENT_EMAIL || '').slice(0, 20) + '…')
+console.log('[whoami] admin.projectId =', admin.app().options?.projectId || '(none)')
+
 if (!SENDGRID_API_KEY || !FROM_EMAIL) {
   console.error('[reminder] Missing SENDGRID_API_KEY or FROM_EMAIL env')
 }
@@ -105,4 +110,3 @@ async function main() {
 }
 
 main().catch(err => { console.error(err); process.exit(1) })
-
