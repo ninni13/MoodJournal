@@ -44,6 +44,19 @@
 - 身分驗證：Firebase Auth（Google）
 - 資料庫：Cloud Firestore（`users/{uid}/diaries/{docId}`）
 
+## 安全與隱私
+
+- Firestore 規則：帳號隔離（見 `firestore.rules`）
+  - 只允許本人讀寫自己的資料：
+    - `users/{uid}/diaries/{docId}`（日記）
+    - `users/{uid}/profile/{docId}`（提醒設定）
+  - 規則部署：
+    - Console：Firestore → Rules → 貼上後 Publish
+    - 或 CLI：`firebase deploy --only firestore:rules`
+- 本地加密（前端）：
+  - 寫入時用 AES 加密內容，Firestore 儲存密文欄位 `contentEnc`
+  - 讀取時在前端解密後顯示明文（相容舊資料）
+
 ## 快速開始
 
 環境需求：Node.js 18+、npm

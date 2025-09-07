@@ -19,6 +19,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  align-items: flex-start;
 }
 
 .label {
@@ -32,14 +33,23 @@
   gap: 0.5rem;
   margin: 1rem 0 0.5rem;
 }
-.filters-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+/* 篩選列：預設同一行（桌機），小螢幕再換行 */
+.filters-row { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
+.filter-actions { display: flex; gap: 8px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+/* 右側搜尋欄：與按鈕同一行，靠右對齊且略短 */
+.search-inline { margin-left: auto; flex: 0 0 300px; max-width: 300px; width: 300px; }
+@media (max-width: 720px) {
+  .filters-row { flex-wrap: wrap; }
+  .search-inline { flex: 1 1 100%; width: 100%; max-width: 100%; order: 2; }
+  .filter-actions { order: 1; }
+}
 .field { display: flex; flex-direction: column; }
 /* 兩欄平均分配寬度，窄螢幕自動換行 */
 .field-lg, .field-sm { flex: 1 1 0; min-width: 220px; }
 .input {
   width: 100%;
-  max-width: 640px; /* 加長欄位（Email / 時區 / 時間 相同） */
-  padding: 0.6rem 0.8rem;
+  max-width: none; /* 取消上限，與 textarea 完全同寬 */
+  padding: 0.75rem 0.9rem; /* 與 textarea 一致 */
   border-radius: 8px;
   border: 1px solid #d0d7de;
   background: #fff;
@@ -52,6 +62,15 @@
 
 /* Full-width input override (use on Settings email) */
 .input-full { max-width: none; }
+/* 移除對 input-full 的 max-width 限制，讓 .search-input 可自訂寬度 */
+/* （設定頁 email 仍會因 .input 的 max-width: none 撐滿寬度） */
+
+/* 讓搜尋輸入框略短，視覺上與下方 textarea 對齊（可再微調） */
+/* 廢止舊的搜尋寬度控制（保留空定義以避免殘留引用） */
+.search-input {}
+@media (max-width: 840px) {
+  .search-input { max-width: 100%; }
+}
 
 /* Ensure selects styled like inputs occupy full width */
 select.input {
@@ -105,6 +124,17 @@ input[type="time"].input { padding-right: 0.6rem; }
   background: #fff;
   color: #1f2328;
   line-height: 1.6;
+  box-sizing: border-box; /* 讓 width:100% 包含 padding 與 border，與容器同寬 */
+}
+/* 移除編輯區內部右側 padding，讓右緣更貼齊 */
+.editor .textarea { padding-right: 0; }
+.editor .label,
+.editor .textarea,
+.editor .actions { width: 100%; max-width: 840px; }
+@media (max-width: 840px) {
+  .editor .label,
+  .editor .textarea,
+  .editor .actions { max-width: 100%; }
 }
 .textarea:focus { outline: none; box-shadow: none; }
 

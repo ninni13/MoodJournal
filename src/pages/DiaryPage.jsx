@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import CryptoJS from 'crypto-js'
 import { Link } from 'react-router-dom'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter, subDays, subMonths } from 'date-fns'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea, ReferenceLine } from 'recharts'
@@ -93,6 +94,24 @@ function uuid() {
   })
 }
 
+// Simple AES helpers (key uses current user's uid for now)
+function encryptText(plain, key) {
+  try {
+    return CryptoJS.AES.encrypt(String(plain), String(key)).toString()
+  } catch {
+    return null
+  }
+}
+function decryptText(cipher, key) {
+  try {
+    const bytes = CryptoJS.AES.decrypt(String(cipher), String(key))
+    const txt = bytes.toString(CryptoJS.enc.Utf8)
+    return txt || null
+  } catch {
+    return null
+  }
+}
+
 export default function DiaryPage() {
   const { currentUser } = useAuth()
   const [content, setContent] = useState('')
@@ -156,6 +175,14 @@ export default function DiaryPage() {
       const normalizedNew = diaries.map(e => {
         const computed = analyzeSentiment(e.content)
         let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : computed
+        // Decrypt content if encrypted
+        let plain = null
+        if (e.contentEnc) {
+          plain = currentUser ? decryptText(e.contentEnc, currentUser.uid) : null
+        }
+        if (!plain && typeof e.content === 'string') {
+          plain = String(e.content)
+        }
         // 若舊資料分數與新規則出入很大，則以新規則覆蓋並排入修補
         if (e.sentiment && typeof e.sentiment === 'object') {
           const diff = Math.abs(Number(e.sentiment.score ?? 0.5) - computed.score)
@@ -167,7 +194,7 @@ export default function DiaryPage() {
         return {
           id: e.id,
           date: normalizeDate(e.date || todayKey()),
-          content: String(e.content ?? ''),
+          content: String(plain ?? ''),
           isDeleted: Boolean(e.isDeleted),
           sentiment,
         }
@@ -188,7 +215,9 @@ export default function DiaryPage() {
         if (!newIds.has(norm.id)) {
           try {
             // Write into new collection
-            await setDoc(doc(baseCol, norm.id), { ...norm })
+            const contentEnc = currentUser ? encryptText(norm.content, currentUser.uid) : null
+            const { content, ...rest } = norm
+            await setDoc(doc(baseCol, norm.id), { ...rest, contentEnc })
             toMigrate.push(norm)
           } catch (err) {
             console.warn('[migrate] failed to write migrated doc:', err?.code || err?.message)
@@ -234,14 +263,14 @@ export default function DiaryPage() {
       const newData = {
         id,
         date: todayKey(),
-        content: text,
         isDeleted: false,
         updatedAt: new Date().toISOString(),
         sentiment: analyzeSentiment(text),
       }
+      const contentEnc = currentUser ? encryptText(text, currentUser.uid) : null
       const ref = doc(baseCol, id)
-      await setDoc(ref, newData)
-      setEntries(prev => [{ id, ...newData }, ...prev])
+      await setDoc(ref, { ...newData, contentEnc })
+      setEntries(prev => [{ id, ...newData, content: text }, ...prev])
       setContent('')
     } catch (e) {
       console.error(e)
@@ -381,8 +410,9 @@ export default function DiaryPage() {
     if (!text) return
     try {
       const sentiment = analyzeSentiment(text)
+      const contentEnc = encryptText(text, currentUser.uid)
       await updateDoc(doc(baseCol, id), {
-        content: text,
+        contentEnc,
         updatedAt: new Date().toISOString(),
         sentiment,
       })
@@ -422,38 +452,41 @@ export default function DiaryPage() {
 
       {/* Filters */}
       <div className="filters">
-        <input
-          className="input"
-          type="text"
-          placeholder="搜尋內文，例如：考試、旅行、emo"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
         <div className="filters-row">
-          <button className={`btn ${quickPreset === 'all' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('all')}>全部</button>
-          <button className={`btn ${quickPreset === 'thisMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('thisMonth')}>本月</button>
-          <button className={`btn ${quickPreset === 'lastMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('lastMonth')}>上月</button>
-          <button className={`btn ${quickPreset === 'custom' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('custom')}>自訂</button>
+          <div className="filter-actions">
+            <button className={`btn ${quickPreset === 'all' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('all')}>全部</button>
+            <button className={`btn ${quickPreset === 'thisMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('thisMonth')}>本月</button>
+            <button className={`btn ${quickPreset === 'lastMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('lastMonth')}>上月</button>
+            <button className={`btn ${quickPreset === 'custom' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('custom')}>自訂</button>
 
-          {quickPreset === 'custom' && (
-            <>
-              <input
-                className="input"
-                style={{ maxWidth: 170 }}
-                type="date"
-                value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
-                onChange={(e) => setStartDate(e.target.value ? parseISO(e.target.value) : null)}
-              />
-              <span style={{ color: '#888' }}>到</span>
-              <input
-                className="input"
-                style={{ maxWidth: 170 }}
-                type="date"
-                value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
-                onChange={(e) => setEndDate(e.target.value ? parseISO(e.target.value) : null)}
-              />
-            </>
-          )}
+            {quickPreset === 'custom' && (
+              <>
+                <input
+                  className="input"
+                  style={{ maxWidth: 170 }}
+                  type="date"
+                  value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => setStartDate(e.target.value ? parseISO(e.target.value) : null)}
+                />
+                <span style={{ color: '#888' }}>到</span>
+                <input
+                  className="input"
+                  style={{ maxWidth: 170 }}
+                  type="date"
+                  value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
+                  onChange={(e) => setEndDate(e.target.value ? parseISO(e.target.value) : null)}
+                />
+              </>
+            )}
+          </div>
+
+          <input
+            className="input search-inline"
+            type="text"
+            placeholder="搜尋內文，例如：考試、旅行、emo"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
       </div>
 
