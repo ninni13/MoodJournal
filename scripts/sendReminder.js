@@ -9,13 +9,17 @@ const reminderDir = join(cwd, 'reminder')
 
 function run(cmd, args, opts = {}) {
   const res = spawnSync(cmd, args, { stdio: 'inherit', ...opts })
-  if (res.status !== 0) {
-    process.exit(res.status || 1)
-  }
+  return res.status === 0
 }
 
-// Ensure reminder deps are installed
-run('npm', ['ci', '--no-audit', '--no-fund'], { cwd: reminderDir })
+// Ensure reminder deps are installed (fallback to npm i if no lockfile)
+if (!run('npm', ['ci', '--no-audit', '--no-fund'], { cwd: reminderDir })) {
+  console.log('[reminder] npm ci failed, falling back to npm i')
+  if (!run('npm', ['i', '--no-audit', '--no-fund'], { cwd: reminderDir })) {
+    console.error('[reminder] dependency install failed')
+    process.exit(1)
+  }
+}
 
 // Map env names
 const env = { ...process.env }
@@ -23,5 +27,6 @@ if (!env.FIREBASE_CLIENT_EMAIL && env.CLIENT_EMAIL) env.FIREBASE_CLIENT_EMAIL = 
 if (!env.FIREBASE_PRIVATE_KEY && env.PRIVATE_KEY) env.FIREBASE_PRIVATE_KEY = env.PRIVATE_KEY
 
 // Execute the actual script
-run('node', ['index.mjs'], { cwd: reminderDir, env })
-
+if (!run('node', ['index.mjs'], { cwd: reminderDir, env })) {
+  process.exit(1)
+}
