@@ -2,7 +2,7 @@ name: Daily Diary Reminder
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # 每 15 分鐘執行一次
+    - cron: '* * * * *'   # 每 1 分鐘執行一次（UTC）
   workflow_dispatch:
 
 jobs:

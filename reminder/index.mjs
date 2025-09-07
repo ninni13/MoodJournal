@@ -71,7 +71,7 @@ async function hasDiaryToday(uid, tz) {
   return false
 }
 
-function shouldSendNow(tz, timeStr, windowMinutes = 15) {
+function shouldSendNow(tz, timeStr, windowMinutes = 1) {
   try {
     const now = DateTime.now().setZone(tz)
     let t = timeStr && typeof timeStr === 'string' ? timeStr : '21:00'
