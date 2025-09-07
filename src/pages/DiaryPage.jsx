@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter, subDays } from 'date-fns'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea, ReferenceLine } from 'recharts'
 import { useAuth } from '../state/AuthContext.jsx'
 import { db, logout } from '../lib/firebase.js'
 import {
@@ -35,6 +37,64 @@ function formatDisplayDate(dateStr) {
   return norm
 }
 
+// Mock sentiment analyzer — replace with real API later
+// Mock sentiment analyzer — replace with real API later
+function analyzeSentiment(text) {
+  const s = String(text || '')
+
+  // 關鍵詞字典（可再擴充）
+  const positiveWords = ['開心', '快樂', '興奮', '幸福', '讚', '爽', '好吃', '好玩', '愛']
+  const negativeWords = ['累', '難過', '生氣', '煩', '討厭', '壓力', '痛苦', '失望', '不喜歡']
+
+  let posHits = 0
+  let negHits = 0
+  positiveWords.forEach(w => { if (s.includes(w)) posHits++ })
+  negativeWords.forEach(w => { if (s.includes(w)) negHits++ })
+
+  const raw = posHits - negHits
+  let label = 'neutral'
+  if (raw > 0) label = 'positive'
+  else if (raw < 0) label = 'negative'
+
+  // 分數規則：
+  // - 正向：>= 0.7（起始 0.8）
+  // - 中立：= 0.5
+  // - 負向：<= 0.3（起始 0.2）
+  let score
+  if (label === 'positive') {
+    score = Math.min(1, 0.8 + Math.max(0, posHits - 1) * 0.05)
+  } else if (label === 'negative') {
+    score = Math.max(0, 0.2 - Math.max(0, negHits - 1) * 0.05)
+  } else {
+    score = 0.5
+  }
+
+  return { label, score }
+}
+
+
+function sentimentView(sentiment) {
+  const label = sentiment?.label || 'neutral'
+  const map = {
+    positive: { emoji: '😊', text: '正向', cls: 'chip-positive' },
+    neutral: { emoji: '😐', text: '中立', cls: 'chip-neutral' },
+    negative: { emoji: '☹️', text: '負向', cls: 'chip-negative' },
+  }
+  const m = map[label] || map.neutral
+  return (
+    <span className={`chip ${m.cls}`} title={label}>
+      <span style={{ marginRight: 4 }}>{m.emoji}</span>{m.text}
+    </span>
+  )
+}
+
+function scoreLabel(score) {
+  if (score == null) return { emoji: '–', text: '無資料', color: '#9ca3af' }
+  if (score < 0.3) return { emoji: '☹️', text: '負向', color: '#ef4444' }
+  if (score > 0.7) return { emoji: '😊', text: '正向', color: '#10b981' }
+  return { emoji: '😐', text: '中立', color: '#6b7280' }
+}
+
 function uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -52,6 +112,9 @@ export default function DiaryPage() {
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editingText, setEditingText] = useState('')
+  const [tab, setTab] = useState('line') // 'line' | 'heat'
+  const [range, setRange] = useState('week') // 'week' | 'month'
+  const [selectedDay, setSelectedDay] = useState(null) // 'YYYY-MM-DD'
 
   const baseCol = useMemo(() => {
     if (!currentUser) return null
@@ -92,12 +155,26 @@ export default function DiaryPage() {
       }
 
       // Normalize and migrate legacy docs to new collection if missing
-      const normalizedNew = diaries.map(e => ({
-        id: e.id,
-        date: String(e.date || todayKey()).slice(0, 10).replaceAll('/', '-'),
-        content: String(e.content ?? ''),
-        isDeleted: Boolean(e.isDeleted),
-      }))
+      const patchList = []
+      const normalizedNew = diaries.map(e => {
+        const computed = analyzeSentiment(e.content)
+        let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : computed
+        // 若舊資料分數與新規則出入很大，則以新規則覆蓋並排入修補
+        if (e.sentiment && typeof e.sentiment === 'object') {
+          const diff = Math.abs(Number(e.sentiment.score ?? 0.5) - computed.score)
+          if (e.sentiment.label !== computed.label || diff > 0.25) {
+            sentiment = computed
+            patchList.push({ id: e.id, sentiment })
+          }
+        }
+        return {
+          id: e.id,
+          date: normalizeDate(e.date || todayKey()),
+          content: String(e.content ?? ''),
+          isDeleted: Boolean(e.isDeleted),
+          sentiment,
+        }
+      })
 
       const newIds = new Set(normalizedNew.map(e => e.id))
       const toMigrate = []
@@ -105,10 +182,11 @@ export default function DiaryPage() {
       for (const e of candidates) {
         const norm = {
           id: e.id,
-          date: String(e.date || todayKey()).slice(0, 10).replaceAll('/', '-'),
+          date: normalizeDate(e.date || todayKey()),
           content: String(e.content ?? ''),
           isDeleted: Boolean(e.isDeleted),
           updatedAt: e.updatedAt || new Date().toISOString(),
+          sentiment: e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : analyzeSentiment(e.content),
         }
         if (!newIds.has(norm.id)) {
           try {
@@ -126,6 +204,17 @@ export default function DiaryPage() {
         .sort((a, b) => toEpoch(b.date) - toEpoch(a.date))
 
       setEntries(merged)
+
+      // 背景修補：把不一致的 sentiment 分數寫回 Firestore
+      if (patchList.length) {
+        try {
+          for (const p of patchList) {
+            await updateDoc(doc(baseCol, p.id), { sentiment: p.sentiment, updatedAt: new Date().toISOString() })
+          }
+        } catch (err) {
+          console.warn('[sentiment-patch] failed:', err?.code || err?.message)
+        }
+      }
     } catch (e) {
       console.error(e)
       setError(e?.message || '讀取資料失敗')
@@ -149,6 +238,7 @@ export default function DiaryPage() {
         content: text,
         isDeleted: false,
         updatedAt: new Date().toISOString(),
+        sentiment: analyzeSentiment(text),
       }
       const ref = doc(baseCol, id)
       await setDoc(ref, newData)
@@ -166,6 +256,66 @@ export default function DiaryPage() {
     return s.slice(0, max) + '…'
   }
 
+  // ===== Insights data derived from entries =====
+  const lineData = useMemo(() => {
+    const now = new Date()
+    const days = range === 'week' ? 7 : 30
+
+    // Anchor the range to the latest diary date to ensure newly edited future dates show up
+    let latest = new Date(0)
+    for (const it of entries) {
+      const d = parseISO(it.date)
+      if (d > latest) latest = d
+    }
+    const end = latest > now ? latest : now
+    const start = subDays(end, days - 1)
+    const allDays = eachDayOfInterval({ start, end })
+
+    const byKey = new Map()
+    for (const it of entries) {
+      const d = parseISO(it.date)
+      if (isAfter(start, d)) continue // skip before range
+      if (d > end) continue // skip after range
+      const k = it.date
+      if (!byKey.has(k)) byKey.set(k, [])
+      const val = Number(it?.sentiment?.score ?? 0.5)
+      byKey.get(k).push(val)
+    }
+
+    return allDays.map(d => {
+      const k = format(d, 'yyyy-MM-dd')
+      const arr = byKey.get(k) || []
+      const avg = arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null
+      return { date: k, score: avg }
+    })
+  }, [entries, range])
+
+  const monthHeat = useMemo(() => {
+    const now = new Date()
+    const start = startOfMonth(now)
+    const end = endOfMonth(now)
+    const days = eachDayOfInterval({ start, end })
+    const byKey = new Map()
+    for (const it of entries) {
+      const k = it.date
+      const dt = parseISO(k)
+      if (dt < start || dt > end) continue
+      if (!byKey.has(k)) byKey.set(k, [])
+      byKey.get(k).push(Number(it?.sentiment?.score ?? 0.5))
+    }
+    return days.map(d => {
+      const k = format(d, 'yyyy-MM-dd')
+      const arr = byKey.get(k) || []
+      const avg = arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null
+      return { date: k, score: avg, day: d.getDate(), dow: d.getDay() }
+    })
+  }, [entries])
+
+  const selectedDayItems = useMemo(() => {
+    if (!selectedDay) return []
+    return entries.filter(i => i.date === selectedDay)
+  }, [entries, selectedDay])
+
   // 刪除功能暫時移除（Day 13 會補上）
 
   async function startEdit(id, current) {
@@ -178,11 +328,13 @@ export default function DiaryPage() {
     const text = String(editingText).trim()
     if (!text) return
     try {
+      const sentiment = analyzeSentiment(text)
       await updateDoc(doc(baseCol, id), {
         content: text,
         updatedAt: new Date().toISOString(),
+        sentiment,
       })
-      setEntries(prev => prev.map(e => (e.id === id ? { ...e, content: text } : e)))
+      setEntries(prev => prev.map(e => (e.id === id ? { ...e, content: text, sentiment } : e)))
       setEditingId(null)
       setEditingText('')
     } catch (e) {
@@ -253,7 +405,10 @@ export default function DiaryPage() {
                       rows={4}
                     />
                   ) : (
-                    <span className="entry-summary">{summary(e.content)}</span>
+                    <>
+                      <span className="entry-summary">{summary(e.content)}</span>
+                      {sentimentView(e.sentiment)}
+                    </>
                   )}
                 </div>
                 {editingId === e.id ? (
@@ -275,6 +430,201 @@ export default function DiaryPage() {
           <p style={{ color: 'crimson', marginTop: '0.75rem' }}>{error}</p>
         )}
       </div>
+      
+      {/* Insights Section */}
+      <div className="list" style={{ marginTop: '1.5rem' }}>
+        <h2 className="subtitle">情緒視覺化</h2>
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <button className={`btn ${tab === 'line' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('line')}>折線圖</button>
+          <button className={`btn ${tab === 'heat' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('heat')}>熱力圖</button>
+        </div>
+
+        {tab === 'line' && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <button className={`btn ${range === 'week' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => setRange('week')}>最近 7 天</button>
+              <button className={`btn ${range === 'month' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => setRange('month')}>最近 30 天</button>
+            </div>
+            {loading ? (
+              <p className="empty">載入中…</p>
+            ) : (
+              <div style={{ width: '100%', height: 320 }}>
+                <ResponsiveContainer>
+                  <LineChart data={lineData} margin={{ top: 10, right: 20, bottom: 20, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(v) => format(parseISO(v), 'MM/dd')}
+                      minTickGap={20}
+                      tickMargin={12}
+                    />
+                    <YAxis domain={[0, 1]} tickCount={6} />
+                    {/* Sentiment bands */}
+                    <ReferenceArea y1={0} y2={0.3} fill="#fee2e2" fillOpacity={0.6} strokeOpacity={0} />
+                    <ReferenceArea y1={0.3} y2={0.7} fill="#f3f4f6" fillOpacity={0.6} strokeOpacity={0} />
+                    <ReferenceArea y1={0.7} y2={1} fill="#dcfce7" fillOpacity={0.6} strokeOpacity={0} />
+                    <ReferenceLine y={0.3} stroke="#d1d5db" strokeDasharray="3 3" />
+                    <ReferenceLine y={0.7} stroke="#d1d5db" strokeDasharray="3 3" />
+                    <Tooltip
+                      labelFormatter={(v) => format(parseISO(v), 'yyyy/MM/dd')}
+                      formatter={(val) => {
+                        const s = Number(val)
+                        const m = scoreLabel(s)
+                        return [`${s?.toFixed?.(2)} ${m.emoji} ${m.text}`, '情緒']
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="score"
+                      stroke="#d36f72"
+                      strokeWidth={2}
+                      connectNulls
+                      dot={(p) => {
+                        const { cx, cy, value } = p
+                        if (value == null || Number.isNaN(value) || !isFinite(value)) return null
+                        if (!isFinite(cx) || !isFinite(cy)) return null
+                        const m = scoreLabel(value)
+                        return <circle cx={cx} cy={cy} r={3} fill={m.color} stroke="#fff" strokeWidth={1} />
+                      }}
+                      activeDot={(p) => {
+                        const { cx, cy, value } = p
+                        if (value == null || Number.isNaN(value) || !isFinite(value)) return null
+                        if (!isFinite(cx) || !isFinite(cy)) return null
+                        return <circle cx={cx} cy={cy} r={5} fill="#d36f72" stroke="#fff" strokeWidth={1} />
+                      }}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === 'heat' && (
+          <div style={{ marginTop: 12 }}>
+            {loading ? (
+              <p className="empty">載入中…</p>
+            ) : (
+              <>
+                <div className="heatmap">
+                  <div className="heatmap-grid">
+                    {['日','一','二','三','四','五','六'].map((d) => (
+                      <div key={`h-${d}`} className="heatmap-header">{d}</div>
+                    ))}
+                    {monthHeat.map((d, idx) => {
+                      const score = d.score
+                      let cls = 'neutral'
+                      const today = new Date(); today.setHours(0,0,0,0)
+                      const isFuture = parseISO(d.date) > today
+                      if (isFuture) {
+                        cls = 'future'
+                      } else if (score != null) {
+                        if (score < 0.3) cls = 'neg'
+                        else if (score > 0.7) cls = 'pos'
+                        else cls = 'neutral'
+                      }
+                      const style = { gridColumnStart: idx === 0 ? (d.dow + 1) : 'auto' }
+                      return (
+                        <button
+                          key={d.date}
+                          className={`heat-cell ${cls}`}
+                          style={style}
+                          title={isFuture ? `${d.date} - 未來` : `${d.date}${score != null ? ` - 平均 ${score.toFixed(2)}` : ''}`}
+                          onClick={() => !isFuture && setSelectedDay(d.date)}
+                          disabled={isFuture}
+                        >
+                          <span className="heat-day">{d.day}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="heat-legend">
+                    <span className="legend neg">負向</span>
+                    <span className="legend neutral">中立</span>
+                    <span className="legend pos">正向</span>
+                  </div>
+                </div>
+
+                {selectedDay && (
+                  <div style={{ marginTop: 12 }}>
+                    <h2 className="subtitle">{format(parseISO(selectedDay), 'yyyy/MM/dd')} 的日記</h2>
+                    {selectedDayItems.length === 0 ? (
+                      <p className="empty">當日沒有日記</p>
+                    ) : (
+                      <ul className="entries">
+                        {selectedDayItems.map(e => (
+                          <li key={e.id} className="entry">
+                            <div className="entry-main">
+                              <span className="entry-summary">{summary(e.content)}</span>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
+}
+// Normalize incoming date to ISO yyyy-MM-dd
+function normalizeDate(input) {
+  try {
+    // Firestore Timestamp
+    if (input && typeof input === 'object') {
+      if (typeof input.toDate === 'function') {
+        const d = input.toDate()
+        return format(d, 'yyyy-MM-dd')
+      }
+      // Date instance
+      if (input instanceof Date && !isNaN(input)) {
+        return format(input, 'yyyy-MM-dd')
+      }
+    }
+    // String forms
+    const s = String(input || '').trim()
+    if (!s) return todayKey()
+    // Replace common separators with '-'
+    const parts = s.replace(/[^0-9]+/g, '-').split('-').filter(Boolean)
+    const now = new Date()
+    let y, m, d
+    if (parts.length === 3) {
+      // Could be yyyy-mm-dd or mm-dd-yy
+      if (parts[0].length === 4) {
+        y = Number(parts[0])
+        m = Number(parts[1])
+        d = Number(parts[2])
+      } else {
+        // Assume mm-dd-(yy)yy with current century fallback
+        y = Number(parts[2])
+        if (y < 100) y = 2000 + y
+        m = Number(parts[0])
+        d = Number(parts[1])
+      }
+    } else if (parts.length === 2) {
+      // mm-dd with current year
+      y = now.getFullYear()
+      m = Number(parts[0])
+      d = Number(parts[1])
+    } else if (parts.length === 1 && parts[0].length >= 8) {
+      // Probably compact yyyymmdd
+      const str = parts[0]
+      y = Number(str.slice(0, 4))
+      m = Number(str.slice(4, 6))
+      d = Number(str.slice(6, 8))
+    } else {
+      return todayKey()
+    }
+    if (!y || !m || !d) return todayKey()
+    const mm = String(Math.max(1, Math.min(12, m))).padStart(2, '0')
+    const dd = String(Math.max(1, Math.min(31, d))).padStart(2, '0')
+    return `${y}-${mm}-${dd}`
+  } catch {
+    return todayKey()
+  }
 }

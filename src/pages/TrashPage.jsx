@@ -117,6 +117,12 @@ export default function TrashPage() {
                   <span className="entry-date">{formatDisplayDate(e.date)}</span>
                   <span className="entry-sep">|</span>
                   <span className="entry-summary">{String(e.content).slice(0, 30)}{String(e.content).length > 30 ? '…' : ''}</span>
+                  {/* Optional: show sentiment tag if exists */}
+                  {e.sentiment && (
+                    <span className="chip chip-neutral" style={{ marginLeft: 8 }}>
+                      {(e.sentiment.label === 'positive' && '😊 正向') || (e.sentiment.label === 'negative' && '☹️ 負向') || '😐 中立'}
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-secondary" onClick={() => restore(e.id)}>還原</button>

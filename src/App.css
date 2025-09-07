@@ -181,3 +181,67 @@
   white-space: nowrap;
   flex: 1 1 auto;
 }
+
+/* Heatmap */
+.heatmap { margin-top: 8px; }
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.heatmap-header {
+  font-size: 12px;
+  color: #666;
+  text-align: center;
+  margin-bottom: 4px;
+}
+.heat-cell {
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.heat-day { font-size: 12px; color: #374151; }
+
+.heat-cell.pos  { background: #dcfce7; border-color: #86efac; }
+.heat-cell.neutral { background: #f3f4f6; border-color: #e5e7eb; }
+.heat-cell.neg  { background: #fee2e2; border-color: #fca5a5; }
+.heat-cell.future { background: #e5e7eb; border-color: #d1d5db; }
+.heat-cell.future .heat-day { color: #6b7280; }
+
+.heat-legend { display: flex; gap: 8px; margin-top: 8px; }
+.legend { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid #e5e7eb; color: #1f2937; }
+.legend.pos { background: #dcfce7; }
+.legend.neutral { background: #f3f4f6; }
+.legend.neg { background: #fee2e2; }
+
+@media (prefers-color-scheme: dark) {
+  .heat-cell.future { background: #111827; border-color: #374151; }
+  .heat-cell.future .heat-day { color: #9ca3af; }
+  .legend { color: #111827; }
+}
+
+/* Sentiment chip */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+.chip-positive { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.chip-neutral  { background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
+.chip-negative { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+
+@media (prefers-color-scheme: dark) {
+  .chip-positive { background: #052e2b; color: #a7f3d0; border-color: #064e3b; }
+  .chip-neutral  { background: #1f2430; color: #e5e7eb; border-color: #2f3338; }
+  .chip-negative { background: #3a0f0f; color: #fecaca; border-color: #7f1d1d; }
+}
