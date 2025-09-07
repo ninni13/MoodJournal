@@ -5,5 +5,8 @@
     "firebase-admin": "^12.5.0",
     "dotenv": "^16.4.5",
     "@sendgrid/mail": "^7.7.0"
+  },
+  "scripts": {
+    "start": "node scripts/sendReminder.mjs"
   }
 }
