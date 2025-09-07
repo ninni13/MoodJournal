@@ -361,9 +361,11 @@ input[type="time"].input { padding-right: 0.6rem; }
 .chip-positive { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
 .chip-neutral  { background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
 .chip-negative { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.chip-pending  { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
 
 @media (prefers-color-scheme: dark) {
   .chip-positive { background: #052e2b; color: #a7f3d0; border-color: #064e3b; }
   .chip-neutral  { background: #1f2430; color: #e5e7eb; border-color: #2f3338; }
   .chip-negative { background: #3a0f0f; color: #fecaca; border-color: #7f1d1d; }
+  .chip-pending  { background: #2a1a0f; color: #fdba74; border-color: #7c2d12; }
 }

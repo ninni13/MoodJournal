@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import CryptoJS from 'crypto-js'
+import { addPending, getAllPending, deletePending } from '../lib/idb.js'
 import { Link } from 'react-router-dom'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter, subDays, subMonths } from 'date-fns'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea, ReferenceLine } from 'recharts'
 import { useAuth } from '../state/AuthContext.jsx'
 import { db, logout } from '../lib/firebase.js'
-import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc, where, setDoc } from 'firebase/firestore'
+import { addDoc, collection, doc, getDocs, getDoc, orderBy, query, updateDoc, where, setDoc } from 'firebase/firestore'
 import '../App.css'
 
 function todayKey() {
@@ -120,12 +121,16 @@ export default function DiaryPage() {
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editingText, setEditingText] = useState('')
+  const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
+  const [syncStatus, setSyncStatus] = useState('')
+  const [pendingCount, setPendingCount] = useState(0)
   // Search & date filters
   const [searchQuery, setSearchQuery] = useState('')
   const today = new Date()
-  const [quickPreset, setQuickPreset] = useState('thisMonth') // 'all' | 'thisMonth' | 'lastMonth' | 'custom'
-  const [startDate, setStartDate] = useState(startOfMonth(today))
-  const [endDate, setEndDate] = useState(endOfMonth(today))
+  // 預設改為「全部」，避免舊資料被本月篩掉
+  const [quickPreset, setQuickPreset] = useState('all') // 'all' | 'thisMonth' | 'lastMonth' | 'custom'
+  const [startDate, setStartDate] = useState(null)
+  const [endDate, setEndDate] = useState(null)
   // Reminder settings
   // Settings moved to SettingsPage
   const [tab, setTab] = useState('line') // 'line' | 'heat'
@@ -173,9 +178,7 @@ export default function DiaryPage() {
       // Normalize and migrate legacy docs to new collection if missing
       const patchList = []
       const normalizedNew = diaries.map(e => {
-        const computed = analyzeSentiment(e.content)
-        let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : computed
-        // Decrypt content if encrypted
+        // 先取得可用明文，再根據明文分析情緒
         let plain = null
         if (e.contentEnc) {
           plain = currentUser ? decryptText(e.contentEnc, currentUser.uid) : null
@@ -183,6 +186,8 @@ export default function DiaryPage() {
         if (!plain && typeof e.content === 'string') {
           plain = String(e.content)
         }
+        const computed = analyzeSentiment(plain)
+        let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : computed
         // 若舊資料分數與新規則出入很大，則以新規則覆蓋並排入修補
         if (e.sentiment && typeof e.sentiment === 'object') {
           const diff = Math.abs(Number(e.sentiment.score ?? 0.5) - computed.score)
@@ -251,6 +256,90 @@ export default function DiaryPage() {
 
   useEffect(() => { refresh() }, [refresh])
 
+  // 當離線時，把尚未同步的本機筆記也展示於列表（加上待同步標記）
+  useEffect(() => {
+    async function loadPendingIntoList() {
+      if (!isOffline || !currentUser) return
+      try {
+        const pending = await getAllPending()
+        if (!pending?.length) return
+        setEntries(prev => {
+          const add = pending.map(p => ({
+            id: p.id,
+            date: p.date,
+            content: p.content,
+            isDeleted: false,
+            sentiment: p.sentiment,
+            localPending: true,
+          }))
+          const ids = new Set(add.map(x => x.id))
+          const rest = prev.filter(x => !ids.has(x.id))
+          return [...add, ...rest]
+        })
+      } catch {}
+    }
+    loadPendingIntoList()
+  }, [isOffline, currentUser])
+
+  // Online/offline detection and sync
+  useEffect(() => {
+    function handleOffline() { setIsOffline(true) }
+    async function handleOnline() {
+      setIsOffline(false)
+      // 若尚未完成登入（currentUser 可能還沒就緒），晚點重試
+      if (!currentUser) {
+        setSyncStatus('等待登入後同步…')
+        setTimeout(() => { if (navigator.onLine) handleOnline() }, 1500)
+        return
+      }
+      setSyncStatus('同步中…')
+      try {
+        const pending = await getAllPending()
+        setPendingCount(pending.length)
+        let ok = 0, fail = 0
+        for (const e of pending) {
+          try {
+            const ref = doc(db, 'users', currentUser.uid, 'diaries', e.id)
+            const exists = await getDoc(ref)
+            if (!exists.exists()) {
+              const contentEnc = encryptText(e.content, currentUser.uid)
+              await setDoc(ref, { id: e.id, date: e.date, contentEnc, sentiment: e.sentiment, isDeleted: false, updatedAt: new Date().toISOString() })
+            }
+            await deletePending(e.id)
+            ok++
+          } catch (entryErr) {
+            // 單筆失敗時保留在 pending，下次再試
+            console.warn('[sync] fail one entry', e.id, entryErr?.message)
+            fail++
+          }
+        }
+        if (fail > 0) {
+          setSyncStatus(`部分完成（成功 ${ok} / 失敗 ${fail}，稍後自動重試）`)
+        } else {
+          setSyncStatus('同步完成')
+        }
+        setTimeout(() => setSyncStatus(''), 2000)
+        refresh()
+      } catch (err) {
+        console.error('[sync] 同步失敗', err)
+        setSyncStatus('同步失敗，稍後自動重試')
+        // 5 秒後自動再嘗試一次（若仍離線或網路不穩）
+        setTimeout(() => {
+          if (navigator.onLine) {
+            handleOnline()
+          }
+        }, 5000)
+        setTimeout(() => setSyncStatus(''), 4000)
+      }
+    }
+    window.addEventListener('offline', handleOffline)
+    window.addEventListener('online', handleOnline)
+    return () => {
+      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [currentUser, db, refresh])
+
   // Settings moved to SettingsPage
 
   const canSave = useMemo(() => content.trim().length > 0, [content])
@@ -267,10 +356,16 @@ export default function DiaryPage() {
         updatedAt: new Date().toISOString(),
         sentiment: analyzeSentiment(text),
       }
-      const contentEnc = currentUser ? encryptText(text, currentUser.uid) : null
-      const ref = doc(baseCol, id)
-      await setDoc(ref, { ...newData, contentEnc })
-      setEntries(prev => [{ id, ...newData, content: text }, ...prev])
+      if (isOffline) {
+        // Save to IndexedDB and reflect in UI
+        await addPending({ ...newData, content: text, isSynced: false })
+        setEntries(prev => [{ id, ...newData, content: text, localPending: true }, ...prev])
+      } else {
+        const contentEnc = currentUser ? encryptText(text, currentUser.uid) : null
+        const ref = doc(baseCol, id)
+        await setDoc(ref, { ...newData, contentEnc })
+        setEntries(prev => [{ id, ...newData, content: text }, ...prev])
+      }
       setContent('')
     } catch (e) {
       console.error(e)
@@ -333,7 +428,7 @@ export default function DiaryPage() {
   }
 
   const hasActiveFilter = useMemo(() => {
-    return searchQuery.trim() !== '' || quickPreset !== 'thisMonth'
+    return searchQuery.trim() !== '' || quickPreset !== 'all'
   }, [searchQuery, quickPreset])
 
   // ===== Insights data derived from entries =====
@@ -450,6 +545,17 @@ export default function DiaryPage() {
         </div>
       </div>
 
+      {isOffline && (
+        <div className="toast toast-error" style={{ position: 'static', marginTop: 8 }}>
+          目前為離線模式，筆記會先儲存在本機並於恢復網路後自動同步。
+        </div>
+      )}
+      {!!syncStatus && !isOffline && (
+        <div className="toast toast-success" style={{ position: 'static', marginTop: 8 }}>
+          {syncStatus}
+        </div>
+      )}
+
       {/* Filters */}
       <div className="filters">
         <div className="filters-row">
@@ -533,6 +639,9 @@ export default function DiaryPage() {
                     <>
                       <span className="entry-summary">{summary(e.content)}</span>
                       {sentimentView(e.sentiment)}
+                      {e.localPending && (
+                        <span className="chip chip-pending" title="尚未同步">待同步</span>
+                      )}
                     </>
                   )}
                 </div>
