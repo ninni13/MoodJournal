@@ -37,7 +37,7 @@ export default function LoginPage() {
     <div className="container" style={{ textAlign: 'center' }}>
       <h1 className="title">情緒日記</h1>
       <p style={{ marginBottom: '1rem', color: '#666' }}>請先登入以使用你的日記</p>
-      <button className="save" onClick={handleGoogleLogin} disabled={busy || !firebaseEnabled}>
+      <button className="btn btn-primary" onClick={handleGoogleLogin} disabled={busy || !firebaseEnabled}>
         {busy ? '登入中…' : '使用 Google 登入'}
       </button>
       {!firebaseEnabled && (

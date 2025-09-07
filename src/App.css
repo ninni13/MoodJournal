@@ -6,7 +6,7 @@
 }
 
 .title {
-  font-size: 2rem;
+  font-size: 1.75rem;
   margin: 0 0 1rem;
 }
 
@@ -49,18 +49,93 @@
 .actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
 }
 
-.save {
-  padding: 0.55rem 1.1rem;
-  border-radius: 8px;
-  border: 1px solid #646cff;
-  background: #646cff;
+/* Buttons */
+:root {
+  --btn-radius: 10px;
+  --btn-shadow: 0 4px 16px rgba(0,0,0,0.08), inset 0 -1px 0 rgba(0,0,0,0.06);
+}
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--btn-radius);
+  border: 1px solid transparent;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
+  box-shadow: var(--btn-shadow);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: #d36f72;
+  border-color: #d36f72;
   color: #fff;
 }
-.save:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.btn-primary:hover:not(:disabled) {
+  background: #c25f62;
+  border-color: #c25f62;
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  border-color: #d0d7de;
+  color: #1f2328;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #eef0f3;
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: #c5c9d2;
+  color: #374151;
+}
+.btn-outline:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.btn-danger {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+@media (prefers-color-scheme: dark) {
+  .btn-secondary {
+    background: #1c1f26;
+    border-color: #2f3338;
+    color: #e6edf3;
+  }
+  .btn-outline {
+    background: transparent;
+    border-color: #3b3f46;
+    color: #e6edf3;
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: #12151a;
+  }
 }
 
 .list {

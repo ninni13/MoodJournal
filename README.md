@@ -4,16 +4,18 @@
 
 ## 功能特色
 
-### 當前（Day 12 版）
+### 當前（Day 13 版）
 
 - Google 登入：LoginPage 提供 Google 登入按鈕
 - 保護路由：未登入導向 `/login`，登入後進入 `/`
 - 雲端儲存：使用者日記存於 Firestore `users/{uid}/diaries/{docId}`
-- 新增日記：DiaryPage 可新增；清單依日期新 → 舊排序
+- 新增/編輯/刪除：DiaryPage 可新增、編輯、刪除（軟刪除 `isDeleted=true`）
+- 排序：清單依日期新 → 舊排序
 - 基本防呆：內容空白無法存檔；存檔後自動清空輸入框
 
 ### 里程碑（Day 12–29）
 
+- Day 11：日記mvp
 - Day 12：Firestore 串接 + 帳號登入（僅本人可見）
 - Day 13：CRUD（編輯、刪除、排序）
 - Day 14：基礎文字情緒分析（正向/中立/負向）
@@ -86,13 +88,15 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=xxxx
 
 路由：
 - `/login`：登入頁（Google 登入）
-- `/`：日記頁（登入保護，含登出按鈕）
+- `/`：日記頁（新增、編輯、刪除；排序）
+- `/trash`：垃圾桶（僅顯示 `isDeleted=true`，支援還原/永久刪除）
 
 ## 專案結構（重點）
 
 - `src/App.jsx`：路由設定（含保護路由）
 - `src/pages/LoginPage.jsx`：登入頁
-- `src/pages/DiaryPage.jsx`：日記頁（Firestore CRUD）
+- `src/pages/DiaryPage.jsx`：日記頁（Firestore CRUD：新增、編輯、軟刪除、排序）
+- `src/pages/TrashPage.jsx`：垃圾桶頁（還原／永久刪除）
 - `src/state/AuthContext.jsx`：使用者狀態（Firebase Auth）
 - `src/lib/firebase.js`：Firebase 初始化（Auth、Firestore）
 - `src/App.css`、`src/index.css`：樣式

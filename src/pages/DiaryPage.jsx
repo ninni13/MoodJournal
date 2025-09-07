@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../state/AuthContext.jsx'
 import { db, logout } from '../lib/firebase.js'
-import { addDoc, collection, getDocs } from 'firebase/firestore'
+import {
+  addDoc,
+  collection,
+  doc,
+  getDocs,
+  orderBy,
+  query,
+  updateDoc,
+  where,
+  setDoc,
+} from 'firebase/firestore'
 import '../App.css'
 
 function todayKey() {
@@ -24,12 +35,23 @@ function formatDisplayDate(dateStr) {
   return norm
 }
 
+function uuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 export default function DiaryPage() {
   const { currentUser } = useAuth()
   const [content, setContent] = useState('')
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editingText, setEditingText] = useState('')
 
   const baseCol = useMemo(() => {
     if (!currentUser) return null
@@ -41,24 +63,76 @@ export default function DiaryPage() {
     setLoading(true)
     setError('')
     try {
-      const snap = await getDocs(baseCol)
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      // Normalize
-      const normalized = list.map(e => ({
+      // Avoid composite index for now: order only, filter client-side
+      const q1 = query(baseCol, orderBy('date', 'desc'))
+      const snap1 = await getDocs(q1)
+      const diaries = snap1.docs.map(d => ({ id: d.id, ...d.data() }))
+
+      // Backward compatibility: also check old collection name `diary`
+      let oldOnes = []
+      try {
+        const oldCol = collection(db, 'users', currentUser.uid, 'diary')
+        const q2 = query(oldCol, orderBy('date', 'desc'))
+        const snap2 = await getDocs(q2)
+        oldOnes = snap2.docs.map(d => ({ id: d.id, ...d.data(), __legacy: true }))
+      } catch (err) {
+        // Likely due to Firestore rules not allowing the legacy path; skip silently
+        console.warn('[migrate] skip legacy read due to permission:', err?.code || err?.message)
+      }
+
+      // Handle mistakenly stored docs at users/uid/diaries/* (literal "uid")
+      let wrongUidOnes = []
+      try {
+        const wrongUidCol = collection(db, 'users', 'uid', 'diaries')
+        const q3 = query(wrongUidCol, orderBy('date', 'desc'))
+        const snap3 = await getDocs(q3)
+        wrongUidOnes = snap3.docs.map(d => ({ id: d.id, ...d.data(), __wrongUid: true }))
+      } catch (err) {
+        console.warn('[migrate] skip users/uid/diaries due to permission:', err?.code || err?.message)
+      }
+
+      // Normalize and migrate legacy docs to new collection if missing
+      const normalizedNew = diaries.map(e => ({
         id: e.id,
         date: String(e.date || todayKey()).slice(0, 10).replaceAll('/', '-'),
         content: String(e.content ?? ''),
+        isDeleted: Boolean(e.isDeleted),
       }))
-      // Sort by date desc
-      normalized.sort((a, b) => toEpoch(b.date) - toEpoch(a.date))
-      setEntries(normalized)
+
+      const newIds = new Set(normalizedNew.map(e => e.id))
+      const toMigrate = []
+      const candidates = [...oldOnes, ...wrongUidOnes]
+      for (const e of candidates) {
+        const norm = {
+          id: e.id,
+          date: String(e.date || todayKey()).slice(0, 10).replaceAll('/', '-'),
+          content: String(e.content ?? ''),
+          isDeleted: Boolean(e.isDeleted),
+          updatedAt: e.updatedAt || new Date().toISOString(),
+        }
+        if (!newIds.has(norm.id)) {
+          try {
+            // Write into new collection
+            await setDoc(doc(baseCol, norm.id), { ...norm })
+            toMigrate.push(norm)
+          } catch (err) {
+            console.warn('[migrate] failed to write migrated doc:', err?.code || err?.message)
+          }
+        }
+      }
+
+      const merged = [...normalizedNew, ...toMigrate]
+        .filter(e => e.isDeleted !== true)
+        .sort((a, b) => toEpoch(b.date) - toEpoch(a.date))
+
+      setEntries(merged)
     } catch (e) {
       console.error(e)
       setError(e?.message || '讀取資料失敗')
     } finally {
       setLoading(false)
     }
-  }, [baseCol])
+  }, [baseCol, currentUser])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -68,9 +142,17 @@ export default function DiaryPage() {
     const text = content.trim()
     if (!text || !baseCol) return
     try {
-      const newData = { date: todayKey(), content: text }
-      const ref = await addDoc(baseCol, newData)
-      setEntries(prev => [{ id: ref.id, ...newData }, ...prev])
+      const id = uuid()
+      const newData = {
+        id,
+        date: todayKey(),
+        content: text,
+        isDeleted: false,
+        updatedAt: new Date().toISOString(),
+      }
+      const ref = doc(baseCol, id)
+      await setDoc(ref, newData)
+      setEntries(prev => [{ id, ...newData }, ...prev])
       setContent('')
     } catch (e) {
       console.error(e)
@@ -86,13 +168,50 @@ export default function DiaryPage() {
 
   // 刪除功能暫時移除（Day 13 會補上）
 
+  async function startEdit(id, current) {
+    setEditingId(id)
+    setEditingText(current)
+  }
+
+  async function saveEdit(id) {
+    if (!id || !currentUser || !baseCol) return
+    const text = String(editingText).trim()
+    if (!text) return
+    try {
+      await updateDoc(doc(baseCol, id), {
+        content: text,
+        updatedAt: new Date().toISOString(),
+      })
+      setEntries(prev => prev.map(e => (e.id === id ? { ...e, content: text } : e)))
+      setEditingId(null)
+      setEditingText('')
+    } catch (e) {
+      console.error(e)
+      setError(e?.message || '更新失敗')
+    }
+  }
+
+  async function softDelete(id) {
+    if (!id || !currentUser || !baseCol) return
+    const ok = window.confirm('確定要刪除這篇日記嗎？（可於垃圾桶還原）')
+    if (!ok) return
+    try {
+      await updateDoc(doc(baseCol, id), { isDeleted: true, updatedAt: new Date().toISOString() })
+      setEntries(prev => prev.filter(e => e.id !== id))
+    } catch (e) {
+      console.error(e)
+      setError(e?.message || '刪除失敗')
+    }
+  }
+
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="title" style={{ marginBottom: 0 }}>情緒日記</h1>
+        <h1 className="title" style={{ marginBottom: 0 }}>霓的情緒日記</h1>
         <div>
+          <Link to="/trash" style={{ marginRight: '0.75rem', fontSize: 14 }}>垃圾桶</Link>
           <span style={{ marginRight: '0.75rem', color: '#666', fontSize: 14 }}>{currentUser?.displayName}</span>
-          <button className="save" onClick={logout}>登出</button>
+          <button className="btn btn-outline" onClick={logout}>登出</button>
         </div>
       </div>
 
@@ -107,7 +226,7 @@ export default function DiaryPage() {
           rows={6}
         />
         <div className="actions">
-          <button className="save" onClick={handleSave} disabled={!canSave}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={!canSave}>
             存檔
           </button>
         </div>
@@ -126,8 +245,28 @@ export default function DiaryPage() {
                 <div className="entry-main">
                   <span className="entry-date">{formatDisplayDate(e.date)}</span>
                   <span className="entry-sep">|</span>
-                  <span className="entry-summary">{summary(e.content)}</span>
+                  {editingId === e.id ? (
+                    <textarea
+                      className="textarea"
+                      value={editingText}
+                      onChange={(ev) => setEditingText(ev.target.value)}
+                      rows={4}
+                    />
+                  ) : (
+                    <span className="entry-summary">{summary(e.content)}</span>
+                  )}
                 </div>
+                {editingId === e.id ? (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-primary" onClick={() => saveEdit(e.id)}>儲存</button>
+                    <button className="btn btn-secondary" onClick={() => { setEditingId(null); setEditingText('') }}>取消</button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className="btn btn-outline" onClick={() => startEdit(e.id, e.content)}>編輯</button>
+                    <button className="btn btn-danger" onClick={() => softDelete(e.id)}>刪除</button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
