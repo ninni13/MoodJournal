@@ -12,6 +12,12 @@ const {
 
 const fixedPrivateKey = PRIVATE_KEY?.replace(/\\n/g, '\n')
 
+// Help Admin SDK pick the correct project id in all environments
+if (FIREBASE_PROJECT_ID) {
+  if (!process.env.GOOGLE_CLOUD_PROJECT) process.env.GOOGLE_CLOUD_PROJECT = FIREBASE_PROJECT_ID
+  if (!process.env.GCLOUD_PROJECT) process.env.GCLOUD_PROJECT = FIREBASE_PROJECT_ID
+}
+
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.cert({
@@ -19,6 +25,7 @@ if (!admin.apps.length) {
       clientEmail: CLIENT_EMAIL,
       privateKey: fixedPrivateKey,
     }),
+    projectId: FIREBASE_PROJECT_ID,
   })
 }
 const db = admin.firestore()
