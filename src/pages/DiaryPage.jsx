@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter, subDays } from 'date-fns'
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter, subDays, subMonths } from 'date-fns'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea, ReferenceLine } from 'recharts'
 import { useAuth } from '../state/AuthContext.jsx'
 import { db, logout } from '../lib/firebase.js'
@@ -37,7 +37,6 @@ function formatDisplayDate(dateStr) {
   return norm
 }
 
-// Mock sentiment analyzer — replace with real API later
 // Mock sentiment analyzer — replace with real API later
 function analyzeSentiment(text) {
   const s = String(text || '')
@@ -112,6 +111,12 @@ export default function DiaryPage() {
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [editingText, setEditingText] = useState('')
+  // Search & date filters
+  const [searchQuery, setSearchQuery] = useState('')
+  const today = new Date()
+  const [quickPreset, setQuickPreset] = useState('thisMonth') // 'all' | 'thisMonth' | 'lastMonth' | 'custom'
+  const [startDate, setStartDate] = useState(startOfMonth(today))
+  const [endDate, setEndDate] = useState(endOfMonth(today))
   const [tab, setTab] = useState('line') // 'line' | 'heat'
   const [range, setRange] = useState('week') // 'week' | 'month'
   const [selectedDay, setSelectedDay] = useState(null) // 'YYYY-MM-DD'
@@ -256,6 +261,56 @@ export default function DiaryPage() {
     return s.slice(0, max) + '…'
   }
 
+  // ===== Filters =====
+  function applyPreset(preset) {
+    setQuickPreset(preset)
+    const now = new Date()
+    if (preset === 'all') {
+      setStartDate(null)
+      setEndDate(null)
+    } else if (preset === 'thisMonth') {
+      setStartDate(startOfMonth(now))
+      setEndDate(endOfMonth(now))
+    } else if (preset === 'lastMonth') {
+      const lm = subMonths(now, 1)
+      setStartDate(startOfMonth(lm))
+      setEndDate(endOfMonth(lm))
+    } else {
+      // custom: keep current start/end
+    }
+  }
+
+  const filteredDiaries = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    const s = startDate ? new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate()) : null
+    const e = endDate ? new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()) : null
+    return entries.filter(it => {
+      const d = parseISO(it.date)
+      if (s && d < s) return false
+      if (e && d > e) return false
+      if (!q) return true
+      return String(it.content).toLowerCase().includes(q)
+    })
+  }, [entries, searchQuery, startDate, endDate])
+
+  const sortedFiltered = useMemo(() =>
+    [...filteredDiaries].sort((a,b) => toEpoch(b.date) - toEpoch(a.date)),
+  [filteredDiaries])
+
+  function filterTitle() {
+    const hasCustomRange = startDate && endDate && (startDate.getFullYear() !== endDate.getFullYear() || startDate.getMonth() !== endDate.getMonth())
+    let base
+    if (!startDate && !endDate) base = '全部歷史紀錄'
+    else if (hasCustomRange) base = `${format(startDate, 'yyyy/MM/dd')} - ${format(endDate, 'yyyy/MM/dd')} 歷史紀錄`
+    else base = `${format((endDate || new Date()), 'yyyy/MM')} 歷史紀錄`
+    const q = searchQuery.trim()
+    return q ? `${base}（含『${q}』）` : base
+  }
+
+  const hasActiveFilter = useMemo(() => {
+    return searchQuery.trim() !== '' || quickPreset !== 'thisMonth'
+  }, [searchQuery, quickPreset])
+
   // ===== Insights data derived from entries =====
   const lineData = useMemo(() => {
     const now = new Date()
@@ -263,7 +318,7 @@ export default function DiaryPage() {
 
     // Anchor the range to the latest diary date to ensure newly edited future dates show up
     let latest = new Date(0)
-    for (const it of entries) {
+    for (const it of sortedFiltered) {
       const d = parseISO(it.date)
       if (d > latest) latest = d
     }
@@ -272,7 +327,7 @@ export default function DiaryPage() {
     const allDays = eachDayOfInterval({ start, end })
 
     const byKey = new Map()
-    for (const it of entries) {
+    for (const it of sortedFiltered) {
       const d = parseISO(it.date)
       if (isAfter(start, d)) continue // skip before range
       if (d > end) continue // skip after range
@@ -291,12 +346,13 @@ export default function DiaryPage() {
   }, [entries, range])
 
   const monthHeat = useMemo(() => {
-    const now = new Date()
-    const start = startOfMonth(now)
-    const end = endOfMonth(now)
+    // Heatmap follows the month of endDate if provided, else current month
+    const base = endDate || new Date()
+    const start = startOfMonth(base)
+    const end = endOfMonth(base)
     const days = eachDayOfInterval({ start, end })
     const byKey = new Map()
-    for (const it of entries) {
+    for (const it of sortedFiltered) {
       const k = it.date
       const dt = parseISO(k)
       if (dt < start || dt > end) continue
@@ -313,8 +369,8 @@ export default function DiaryPage() {
 
   const selectedDayItems = useMemo(() => {
     if (!selectedDay) return []
-    return entries.filter(i => i.date === selectedDay)
-  }, [entries, selectedDay])
+    return sortedFiltered.filter(i => i.date === selectedDay)
+  }, [sortedFiltered, selectedDay])
 
   // 刪除功能暫時移除（Day 13 會補上）
 
@@ -367,6 +423,43 @@ export default function DiaryPage() {
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="filters">
+        <input
+          className="input"
+          type="text"
+          placeholder="搜尋內文，例如：考試、旅行、emo"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <div className="filters-row">
+          <button className={`btn ${quickPreset === 'all' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('all')}>全部</button>
+          <button className={`btn ${quickPreset === 'thisMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('thisMonth')}>本月</button>
+          <button className={`btn ${quickPreset === 'lastMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('lastMonth')}>上月</button>
+          <button className={`btn ${quickPreset === 'custom' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('custom')}>自訂</button>
+
+          {quickPreset === 'custom' && (
+            <>
+              <input
+                className="input"
+                style={{ maxWidth: 170 }}
+                type="date"
+                value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
+                onChange={(e) => setStartDate(e.target.value ? parseISO(e.target.value) : null)}
+              />
+              <span style={{ color: '#888' }}>到</span>
+              <input
+                className="input"
+                style={{ maxWidth: 170 }}
+                type="date"
+                value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
+                onChange={(e) => setEndDate(e.target.value ? parseISO(e.target.value) : null)}
+              />
+            </>
+          )}
+        </div>
+      </div>
+
       <div className="editor">
         <label htmlFor="content" className="label">日記內容</label>
         <textarea
@@ -385,14 +478,14 @@ export default function DiaryPage() {
       </div>
 
       <div className="list">
-        <h2 className="subtitle">所有日記</h2>
+        <h2 className="subtitle">{hasActiveFilter ? `${filterTitle()}（篩選後共 ${sortedFiltered.length} 篇）` : '所有日記'}</h2>
         {loading ? (
           <p className="empty">載入中…</p>
-        ) : entries.length === 0 ? (
+        ) : sortedFiltered.length === 0 ? (
           <p className="empty">尚無日記，寫下第一筆吧！</p>
         ) : (
           <ul className="entries">
-            {entries.map((e) => (
+            {sortedFiltered.map((e) => (
               <li key={e.id} className="entry">
                 <div className="entry-main">
                   <span className="entry-date">{formatDisplayDate(e.date)}</span>
@@ -556,7 +649,7 @@ export default function DiaryPage() {
                         {selectedDayItems.map(e => (
                           <li key={e.id} className="entry">
                             <div className="entry-main">
-                              <span className="entry-summary">{summary(e.content)}</span>
+                              <span className="entry-full">{e.content}</span>
                             </div>
                           </li>
                         ))}

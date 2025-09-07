@@ -26,6 +26,26 @@
   color: #888;
 }
 
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0 0.5rem;
+}
+.filters-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.input {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid #d0d7de;
+  background: #fff;
+  color: #1f2328;
+}
+.input:focus { outline: none; box-shadow: none; }
+@media (prefers-color-scheme: dark) {
+  .input { background: #111315; color: #e6edf3; border-color: #2f3338; }
+}
+
 .textarea {
   width: 100%;
   resize: vertical;
@@ -37,6 +57,7 @@
   color: #1f2328;
   line-height: 1.6;
 }
+.textarea:focus { outline: none; box-shadow: none; }
 
 @media (prefers-color-scheme: dark) {
   .textarea {
@@ -73,6 +94,7 @@
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
   box-shadow: var(--btn-shadow);
 }
+.btn:focus, .btn:focus-visible { outline: none; box-shadow: none; }
 
 .btn:disabled {
   opacity: 0.6;
@@ -100,7 +122,8 @@
   color: #1f2328;
 }
 .btn-secondary:hover:not(:disabled) {
-  background: #eef0f3;
+  background: #f3f4f6; /* 保持原色，不變白 */
+  border-color: #d36f72; /* 只強調邊框 */
 }
 
 .btn-outline {
@@ -109,7 +132,9 @@
   color: #374151;
 }
 .btn-outline:hover:not(:disabled) {
-  background: #f8fafc;
+  background: transparent; /* 不要白底 */
+  border-color: #d36f72;   /* 用主色強調外框即可 */
+  color: #d36f72;
 }
 
 .btn-danger {
@@ -128,13 +153,19 @@
     border-color: #2f3338;
     color: #e6edf3;
   }
+  .btn-secondary:hover:not(:disabled) {
+    background: #1c1f26; /* 深色模式維持原底色 */
+    border-color: #d36f72;
+  }
   .btn-outline {
     background: transparent;
     border-color: #3b3f46;
     color: #e6edf3;
   }
   .btn-outline:hover:not(:disabled) {
-    background: #12151a;
+    background: transparent; /* 深色模式也保持透明 */
+    border-color: #d36f72;
+    color: #d36f72;
   }
 }
 
@@ -182,6 +213,17 @@
   flex: 1 1 auto;
 }
 
+.entry-full {
+  color: #444;
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1 1 auto;
+}
+
+@media (prefers-color-scheme: dark) {
+  .entry-full { color: #e5e7eb; }
+}
+
 /* Heatmap */
 .heatmap { margin-top: 8px; }
 .heatmap-grid {
@@ -199,16 +241,17 @@
   aspect-ratio: 1 / 1;
   border-radius: 8px;
   border: 1px solid #e5e7eb;
-  background: #f3f4f6;
+  background: transparent !important; /* 強制清掉全域 button 背景 */
   display: flex;
   align-items: center;
   justify-content: center;
 }
+.heat-cell:disabled { opacity: 1; } /* 禁用時也保持原本顏色 */
 .heat-day { font-size: 12px; color: #374151; }
 
-.heat-cell.pos  { background: #dcfce7; border-color: #86efac; }
-.heat-cell.neutral { background: #f3f4f6; border-color: #e5e7eb; }
-.heat-cell.neg  { background: #fee2e2; border-color: #fca5a5; }
+.heat-cell.pos  { background: #dcfce7 !important; border-color: #86efac !important; }
+.heat-cell.neutral { background: #f3f4f6 !important; border-color: #e5e7eb !important; }
+.heat-cell.neg  { background: #fee2e2 !important; border-color: #fca5a5 !important; }
 .heat-cell.future { background: #e5e7eb; border-color: #d1d5db; }
 .heat-cell.future .heat-day { color: #6b7280; }
 
@@ -219,7 +262,7 @@
 .legend.neg { background: #fee2e2; }
 
 @media (prefers-color-scheme: dark) {
-  .heat-cell.future { background: #111827; border-color: #374151; }
+  .heat-cell.future { background: #111827 !important; border-color: #374151 !important; }
   .heat-cell.future .heat-day { color: #9ca3af; }
   .legend { color: #111827; }
 }
