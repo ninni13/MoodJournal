@@ -2,9 +2,8 @@
   "name": "diary-reminder",
   "type": "module",
   "dependencies": {
-    "@sendgrid/mail": "^8.1.0",
     "firebase-admin": "^12.5.0",
-    "luxon": "^3.5.0"
+    "dotenv": "^16.4.5",
+    "@sendgrid/mail": "^7.7.0"
   }
 }
-
