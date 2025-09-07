@@ -2,7 +2,7 @@ name: Daily Diary Reminder
 
 on:
   schedule:
-    - cron: '0 11 * * *'   # 每天 19:00 台灣時間（UTC+8）
+    - cron: '0 13 * * *'   # 每天 21:00 台灣時間（UTC+8）
   workflow_dispatch:
 
 jobs:

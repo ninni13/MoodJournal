@@ -68,17 +68,31 @@ input[type="time"].input { padding-right: 0.6rem; }
 }
 
 .toast {
-  margin-top: 8px;
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid #d1fae5;
-  background: #ecfdf5;
-  color: #065f46;
-  font-size: 13px;
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1000;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  font-size: 14px;
+  animation: toast-in .18s ease-out;
 }
+.toast-success { background: #ecfdf5; border-color: #34d399; color: #065f46; }
+.toast-error   { background: #fef2f2; border-color: #f87171; color: #991b1b; }
+
 @media (prefers-color-scheme: dark) {
-  .toast { border-color: #064e3b; background: #052e2b; color: #a7f3d0; }
+  .toast-success { background: #052e2b; border-color: #065f46; color: #a7f3d0; }
+  .toast-error   { background: #3a0f0f; border-color: #7f1d1d; color: #fecaca; }
+}
+
+@keyframes toast-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
 }
 
 .textarea {
