@@ -14,7 +14,7 @@ jobs:
         with:
           node-version: '20'
       - run: npm ci || npm i
-      - run: node scripts/sendReminder.js
+      - run: node scripts/sendReminder.cjs
         env:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           CLIENT_EMAIL:        ${{ secrets.CLIENT_EMAIL }}

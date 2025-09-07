@@ -30,3 +30,4 @@ if (!env.FIREBASE_PRIVATE_KEY && env.PRIVATE_KEY) env.FIREBASE_PRIVATE_KEY = env
 if (!run('node', ['index.mjs'], { cwd: reminderDir, env })) {
   process.exit(1)
 }
+
