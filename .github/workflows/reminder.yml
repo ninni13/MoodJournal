@@ -1,0 +1,23 @@
+name: Daily Diary Reminder
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # 每 15 分鐘執行一次
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci || npm i
+      - run: node scripts/sendReminder.js
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          CLIENT_EMAIL:        ${{ secrets.CLIENT_EMAIL }}
+          PRIVATE_KEY:         ${{ secrets.PRIVATE_KEY }}
+          SENDGRID_API_KEY:    ${{ secrets.SENDGRID_API_KEY }}
+          FROM_EMAIL:          ${{ secrets.FROM_EMAIL }}

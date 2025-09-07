@@ -33,17 +33,52 @@
   margin: 1rem 0 0.5rem;
 }
 .filters-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.field { display: flex; flex-direction: column; }
+/* 兩欄平均分配寬度，窄螢幕自動換行 */
+.field-lg, .field-sm { flex: 1 1 0; min-width: 220px; }
 .input {
   width: 100%;
+  max-width: 640px; /* 加長欄位（Email / 時區 / 時間 相同） */
   padding: 0.6rem 0.8rem;
   border-radius: 8px;
   border: 1px solid #d0d7de;
   background: #fff;
   color: #1f2328;
+  display: block;
+  box-sizing: border-box;
+  min-height: 40px; /* 統一高度 */
 }
+.input:focus { outline: none; box-shadow: none; }
+
+/* Full-width input override (use on Settings email) */
+.input-full { max-width: none; }
+
+/* Ensure selects styled like inputs occupy full width */
+select.input {
+  width: 100%;
+  display: block;
+  min-height: 40px; /* 與 input 同高 */
+  box-sizing: border-box;
+}
+input[type="time"].input { padding-right: 0.6rem; }
 .input:focus { outline: none; box-shadow: none; }
 @media (prefers-color-scheme: dark) {
   .input { background: #111315; color: #e6edf3; border-color: #2f3338; }
+  select.input { background: #111315; color: #e6edf3; }
+}
+
+.toast {
+  margin-top: 8px;
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #d1fae5;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 13px;
+}
+@media (prefers-color-scheme: dark) {
+  .toast { border-color: #064e3b; background: #052e2b; color: #a7f3d0; }
 }
 
 .textarea {

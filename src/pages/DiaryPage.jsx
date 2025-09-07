@@ -4,17 +4,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter,
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea, ReferenceLine } from 'recharts'
 import { useAuth } from '../state/AuthContext.jsx'
 import { db, logout } from '../lib/firebase.js'
-import {
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  orderBy,
-  query,
-  updateDoc,
-  where,
-  setDoc,
-} from 'firebase/firestore'
+import { addDoc, collection, doc, getDocs, orderBy, query, updateDoc, where, setDoc } from 'firebase/firestore'
 import '../App.css'
 
 function todayKey() {
@@ -117,6 +107,8 @@ export default function DiaryPage() {
   const [quickPreset, setQuickPreset] = useState('thisMonth') // 'all' | 'thisMonth' | 'lastMonth' | 'custom'
   const [startDate, setStartDate] = useState(startOfMonth(today))
   const [endDate, setEndDate] = useState(endOfMonth(today))
+  // Reminder settings
+  // Settings moved to SettingsPage
   const [tab, setTab] = useState('line') // 'line' | 'heat'
   const [range, setRange] = useState('week') // 'week' | 'month'
   const [selectedDay, setSelectedDay] = useState(null) // 'YYYY-MM-DD'
@@ -230,6 +222,8 @@ export default function DiaryPage() {
 
   useEffect(() => { refresh() }, [refresh])
 
+  // Settings moved to SettingsPage
+
   const canSave = useMemo(() => content.trim().length > 0, [content])
 
   async function handleSave() {
@@ -260,6 +254,8 @@ export default function DiaryPage() {
     if (s.length <= max) return s
     return s.slice(0, max) + '…'
   }
+
+  // Settings moved to SettingsPage
 
   // ===== Filters =====
   function applyPreset(preset) {
@@ -417,6 +413,7 @@ export default function DiaryPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 className="title" style={{ marginBottom: 0 }}>霓的情緒日記</h1>
         <div>
+          <Link to="/settings" style={{ marginRight: '0.75rem', fontSize: 14 }}>設定</Link>
           <Link to="/trash" style={{ marginRight: '0.75rem', fontSize: 14 }}>垃圾桶</Link>
           <span style={{ marginRight: '0.75rem', color: '#666', fontSize: 14 }}>{currentUser?.displayName}</span>
           <button className="btn btn-outline" onClick={logout}>登出</button>
@@ -459,6 +456,8 @@ export default function DiaryPage() {
           )}
         </div>
       </div>
+
+      {/* Reminder settings moved to /settings */}
 
       <div className="editor">
         <label htmlFor="content" className="label">日記內容</label>
