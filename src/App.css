@@ -270,7 +270,8 @@ input[type="time"].input { padding-right: 0.6rem; }
 .entry-main {
   display: flex;
   gap: 0.5rem;
-  align-items: baseline;
+  /* Baseline alignment + emoji may cause row height jitter on some platforms */
+  align-items: center;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -353,7 +354,9 @@ input[type="time"].input { padding-right: 0.6rem; }
   padding: 0.15rem 0.5rem;
   border-radius: 999px;
   font-size: 12px;
-  line-height: 1.2;
+  /* Fix emoji vertical metrics causing inconsistent heights across OS */
+  line-height: 1;
+  min-height: 20px;
   border: 1px solid transparent;
   margin-left: 8px;
   white-space: nowrap;
