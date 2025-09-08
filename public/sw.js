@@ -1,8 +1,8 @@
-const CACHE_NAME = 'diary-cache-v1'
+const CACHE_NAME = 'diary-cache-v3'
 const CORE_ASSETS = [
   '/',
   '/index.html',
-  '/vite.svg',
+  '/favicon-32.png',
 ]
 
 self.addEventListener('install', (event) => {
@@ -37,4 +37,3 @@ self.addEventListener('fetch', (event) => {
     )
   }
 })
-
