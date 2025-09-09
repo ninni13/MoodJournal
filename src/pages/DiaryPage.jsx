@@ -6,6 +6,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter,
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea, ReferenceLine } from 'recharts'
 import { useAuth } from '../state/AuthContext.jsx'
 import { db, logout } from '../lib/firebase.js'
+import { inferSentiment } from '../lib/sentiment'
 import { addDoc, collection, doc, getDocs, getDoc, orderBy, query, updateDoc, where, setDoc } from 'firebase/firestore'
 import '../App.css'
 
@@ -113,6 +114,33 @@ function decryptText(cipher, key) {
   }
 }
 
+// Use remote API if available; map to { label, score }
+async function analyzeSentimentViaApi(text) {
+  try {
+    const r = await inferSentiment(text)
+    const raw = (r && r.label_en) || 'neutral'
+    const label1 = raw === 'uncertain' ? 'neutral' : raw
+    let score = 0.5
+    if (Array.isArray(r?.probs) && r.probs.length >= 3) {
+      const [neg, neu, pos] = r.probs
+      const pNeu = Number(neu) || 0
+      const pPos = Number(pos) || 0
+      score = Math.max(0, Math.min(1, pPos + 0.5 * pNeu))
+    } else if (typeof r?.confidence === 'number') {
+      const c = Math.max(0, Math.min(1, r.confidence))
+      if (label1 === 'positive') score = 0.7 + 0.3 * c
+      else if (label1 === 'negative') score = 0.3 - 0.3 * c
+      else score = 0.5
+    }
+    const finalLabel = ['positive', 'neutral', 'negative'].includes(label1)
+      ? label1
+      : (score > 0.7 ? 'positive' : (score < 0.3 ? 'negative' : 'neutral'))
+    return { label: finalLabel, score }
+  } catch (e) {
+    return analyzeSentiment(text)
+  }
+}
+
 export default function DiaryPage() {
   const { currentUser } = useAuth()
   const [content, setContent] = useState('')
@@ -186,15 +214,11 @@ export default function DiaryPage() {
         if (!plain && typeof e.content === 'string') {
           plain = String(e.content)
         }
-        const computed = analyzeSentiment(plain)
-        let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : computed
+        /* computed via local heuristic removed to avoid overwriting API */
+        let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : analyzeSentiment(plain)
         // 若舊資料分數與新規則出入很大，則以新規則覆蓋並排入修補
-        if (e.sentiment && typeof e.sentiment === 'object') {
-          const diff = Math.abs(Number(e.sentiment.score ?? 0.5) - computed.score)
-          if (e.sentiment.label !== computed.label || diff > 0.25) {
-            sentiment = computed
-            patchList.push({ id: e.id, sentiment })
-          }
+        if (!e.sentiment || typeof e.sentiment !== 'object') {
+          patchList.push({ id: e.id, sentiment })
         }
         return {
           id: e.id,
@@ -349,12 +373,13 @@ export default function DiaryPage() {
     if (!text || !baseCol) return
     try {
       const id = uuid()
+      const s = await analyzeSentimentViaApi(text)
       const newData = {
         id,
         date: todayKey(),
         isDeleted: false,
         updatedAt: new Date().toISOString(),
-        sentiment: analyzeSentiment(text),
+        sentiment: s,
       }
       if (isOffline) {
         // Save to IndexedDB and reflect in UI
@@ -504,7 +529,7 @@ export default function DiaryPage() {
     const text = String(editingText).trim()
     if (!text) return
     try {
-      const sentiment = analyzeSentiment(text)
+      const sentiment = await analyzeSentimentViaApi(text)
       const contentEnc = encryptText(text, currentUser.uid)
       await updateDoc(doc(baseCol, id), {
         contentEnc,
