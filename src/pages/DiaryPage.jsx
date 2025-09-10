@@ -870,13 +870,25 @@ export default function DiaryPage() {
                       <ul className="entries">
                         {selectedDayItems.map(e => (
                           <li key={e.id} className="entry">
-                            <div className="entry-main" style={{ alignItems: 'flex-start' }}>
+                            <div className="entry-main" style={{ alignItems: 'flex-start', flexDirection: 'column' }}>
                               <div className="entry-full" style={{ whiteSpace: 'pre-wrap' }}>{e.content}</div>
-                              {e.sentiment && (
-                                <div style={{ marginLeft: 8 }}>
-                                  {sentimentView(e.sentiment)}
-                                </div>
-                              )}
+                              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                {(() => {
+                                  const s = e.sentiment || {}
+                                  const label = s.label || 'neutral'
+                                  const labelZh = label === 'positive' ? '正向' : (label === 'negative' ? '負向' : '中立')
+                                  return <span style={{ fontSize: 13, color: '#9ca3af' }}>{labelZh}</span>
+                                })()}
+                                <span style={{ fontSize: 13, color: '#9ca3af' }}>｜ 關鍵字top5：</span>
+                                <span className="kw-tags" style={{ marginLeft: 0 }}>
+                                  {(Array.isArray(e.sentiment?.topTokens) ? e.sentiment.topTokens.slice(0, 5) : []).map((t, i) => (
+                                    <span key={i} className={`kw-tag ${t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')}`}>{t.text}</span>
+                                  ))}
+                                  {(!Array.isArray(e.sentiment?.topTokens) || e.sentiment.topTokens.length === 0) && (
+                                    <span style={{ fontSize: 13, color: '#9ca3af' }}>—</span>
+                                  )}
+                                </span>
+                              </div>
                             </div>
                           </li>
                         ))}
