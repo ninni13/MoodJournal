@@ -689,6 +689,9 @@ export default function DiaryPage() {
           onChange={(e) => setContent(e.target.value)}
           rows={6}
         />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <VoiceInput onAppend={(txt) => setContent(prev => (prev ? prev + (prev.endsWith('\n') ? '' : ' ') + txt : txt))} />
+        </div>
         <div className="actions">
           <button className="btn btn-primary" onClick={handleSave} disabled={!canSave}>
             存檔
@@ -904,6 +907,55 @@ export default function DiaryPage() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function VoiceInput({ onAppend }) {
+  const [recog, setRecog] = useState(null)
+  const [listening, setListening] = useState(false)
+  const [supported, setSupported] = useState(true)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { setSupported(false); return }
+    const r = new SR()
+    r.lang = 'zh-TW'
+    r.interimResults = true
+    r.continuous = true
+    r.onresult = (e) => {
+      try {
+        let finalText = ''
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i]
+          if (res.isFinal) finalText += res[0].transcript
+        }
+        if (finalText && onAppend) onAppend(finalText.trim())
+      } catch {}
+    }
+    r.onerror = (e) => { setErr(e?.error || 'speech error'); setListening(false) }
+    r.onend = () => { setListening(false) }
+    setRecog(r)
+  }, [onAppend])
+
+  function start() {
+    setErr('')
+    if (!recog) return
+    try { recog.start(); setListening(true) } catch {}
+  }
+  function stop() { if (recog) try { recog.stop() } catch {} }
+
+  if (!supported) {
+    return <span style={{ fontSize: 12, color: '#9ca3af' }}>此瀏覽器不支援語音輸入</span>
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+      <button className={`btn ${listening ? 'btn-danger' : 'btn-secondary'}`} onClick={listening ? stop : start}>
+        {listening ? '停止語音輸入' : '開始語音輸入'}
+      </button>
+      {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>聆聽中…請開始說話</span>}
+      {err && <span style={{ fontSize: 12, color: 'crimson' }}>{err}</span>}
     </div>
   )
 }
