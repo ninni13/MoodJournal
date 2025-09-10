@@ -370,18 +370,18 @@ input[type="time"].input { padding-right: 0.6rem; }
   margin-left: 8px;
   white-space: nowrap;
 }
-.chip-positive { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.chip-positive { background: #10b981; color: #fff; border-color: #10b981; }
 .chip-neutral  { background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
-.chip-negative { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.chip-negative { background: #ef4444; color: #fff; border-color: #ef4444; }
 .chip-pending  { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
 
 /* 信心驅動的飽和度：以 CSS 變數控制色彩強度 */
 .chip[data-conf] {
   --sat: calc(var(--conf, 0.5));
 }
-.chip-positive[data-conf] { background: rgba(16, 185, 129, calc(0.1 + var(--sat) * 0.35)); border-color: rgba(16,185,129, calc(0.25 + var(--sat) * 0.45)); color: #065f46; }
+.chip-positive[data-conf] { background: rgba(16, 185, 129, calc(0.35 + var(--sat) * 0.45)); border-color: rgba(16,185,129, calc(0.6 + var(--sat) * 0.4)); color: #fff; }
 .chip-neutral[data-conf]  { background: rgba(107, 114, 128, calc(0.08 + var(--sat) * 0.25)); border-color: rgba(156,163,175, calc(0.25 + var(--sat) * 0.35)); color: #374151; }
-.chip-negative[data-conf] { background: rgba(239, 68, 68,  calc(0.1 + var(--sat) * 0.35)); border-color: rgba(239, 68, 68,  calc(0.25 + var(--sat) * 0.45)); color: #991b1b; }
+.chip-negative[data-conf] { background: rgba(239, 68, 68,  calc(0.35 + var(--sat) * 0.45)); border-color: rgba(239, 68, 68,  calc(0.6 + var(--sat) * 0.4)); color: #fff; }
 
 /* 關鍵詞小標籤 */
 .kw-tags { display: inline-flex; gap: 6px; margin-left: 6px; flex-wrap: wrap; }

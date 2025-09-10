@@ -125,6 +125,7 @@ export default function TrashPage() {
                         const label = s.label || 'neutral'
                         const conf = typeof s.confidence === 'number' ? s.confidence : undefined
                         const cls = label === 'positive' ? 'chip-positive' : (label === 'negative' ? 'chip-negative' : 'chip-neutral')
+                        const showKw = label === 'positive' || label === 'negative'
                         const title = conf !== undefined ? `${label} (信心 ${(conf * 100).toFixed(1)}%)` : label
                         const confCss = conf !== undefined ? Math.max(0.3, Math.min(1, conf)).toFixed(2) : undefined
                         return (
@@ -142,7 +143,7 @@ export default function TrashPage() {
                                 </span>
                               )}
                             </span>
-                            {Array.isArray(s.topTokens) && s.topTokens.length > 0 && (
+                            {showKw && Array.isArray(s.topTokens) && s.topTokens.length > 0 && (
                               <div className="kw-popover">
                                 <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>關鍵詞</div>
                                 <span className="kw-tags">

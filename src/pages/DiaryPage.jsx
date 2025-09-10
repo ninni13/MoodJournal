@@ -83,6 +83,8 @@ function sentimentView(sentiment) {
   // 信心對應飽和度（0.3~1.0），避免過淡
   const confForCss = confidence !== undefined ? Math.max(0.3, Math.min(1, confidence)).toFixed(2) : undefined
 
+  const showKw = label === 'positive' || label === 'negative'
+
   return (
     <span className="chip-wrap">
       <span
@@ -100,7 +102,7 @@ function sentimentView(sentiment) {
         )}
       </span>
 
-      {topTokens.length > 0 && (
+      {showKw && topTokens.length > 0 && (
         <div className="kw-popover">
           <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>關鍵詞</div>
           <span className="kw-tags">
