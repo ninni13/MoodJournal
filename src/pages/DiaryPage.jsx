@@ -919,15 +919,13 @@ function VoiceInput({ getContent, setContent }) {
   const [interim, setInterim] = useState('')
   const baseRef = useRef('')
   const finalRef = useRef('')
-  const stopRequestedRef = useRef(false)
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) { setSupported(false); return }
-    const r = new SR()
-    r.lang = 'zh-TW'
-    r.interimResults = true
-    r.continuous = true
+    if (!SR) setSupported(false)
+  }, [])
+
+  function attachHandlers(r) {
     r.onresult = (e) => {
       try {
         let interimText = ''
@@ -943,38 +941,42 @@ function VoiceInput({ getContent, setContent }) {
         setInterim(interimText)
       } catch {}
     }
-    r.onerror = (e) => { setErr(e?.error || 'speech error'); setListening(false); setInterim('') }
-    r.onend = () => {
+    r.onerror = (e) => {
+      // 忽略 aborted/no-speech，避免顯示錯誤
+      const code = e?.error || ''
+      if (code !== 'aborted' && code !== 'no-speech') setErr(code || 'speech error')
       setListening(false)
-      // 確保結束時僅保留最終文字，不留暫時結果
-      setContent && setContent(`${baseRef.current}${finalRef.current}`)
       setInterim('')
     }
-    setRecog(r)
-  }, [getContent, setContent])
+    r.onend = () => {
+      setListening(false)
+      setContent && setContent(`${baseRef.current}${finalRef.current}`)
+      setInterim('')
+      setRecog(null)
+    }
+  }
 
   function start() {
     setErr('')
-    if (!recog) return
-    try {
-      stopRequestedRef.current = false
-      baseRef.current = getContent ? getContent() || '' : ''
-      // 若末尾非空白或換行，加一個空白
-      if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) {
-        baseRef.current += ' '
-      }
-      finalRef.current = ''
-      setInterim('')
-      recog.start()
-      setListening(true)
-    } catch {}
+    if (listening) return
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) { setSupported(false); return }
+    const r = new SR()
+    r.lang = 'zh-TW'
+    r.interimResults = true
+    r.continuous = true
+    attachHandlers(r)
+    baseRef.current = getContent ? (getContent() || '') : ''
+    if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) baseRef.current += ' '
+    finalRef.current = ''
+    setInterim('')
+    try { r.start(); setRecog(r); setListening(true) } catch {}
   }
   function stop() {
-    stopRequestedRef.current = true
-    if (recog) {
-      try { recog.stop() } catch {}
-      try { recog.abort() } catch {}
-    }
+    const r = recog
+    if (!r) { setListening(false); return }
+    try { r.stop() } catch {}
+    try { r.abort() } catch {}
     setListening(false)
     setInterim('')
   }
