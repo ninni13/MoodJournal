@@ -119,8 +119,20 @@ export default function TrashPage() {
                   <span className="entry-summary">{String(e.content).slice(0, 30)}{String(e.content).length > 30 ? '…' : ''}</span>
                   {/* Optional: show sentiment tag if exists */}
                   {e.sentiment && (
-                    <span className="chip chip-neutral" style={{ marginLeft: 8 }}>
+                    <span 
+                      className={`chip ${
+                        e.sentiment.label === 'positive' ? 'chip-positive' : 
+                        e.sentiment.label === 'negative' ? 'chip-negative' : 'chip-neutral'
+                      }`} 
+                      style={{ marginLeft: 8 }}
+                      title={e.sentiment.confidence ? `信心: ${(e.sentiment.confidence * 100).toFixed(1)}%` : ''}
+                    >
                       {(e.sentiment.label === 'positive' && '😊 正向') || (e.sentiment.label === 'negative' && '☹️ 負向') || '😐 中立'}
+                      {e.sentiment.confidence && (
+                        <span style={{ marginLeft: 4, fontSize: '11px', opacity: 0.8 }}>
+                          {(e.sentiment.confidence * 100).toFixed(0)}%
+                        </span>
+                      )}
                     </span>
                   )}
                 </div>

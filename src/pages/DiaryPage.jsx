@@ -67,15 +67,29 @@ function analyzeSentiment(text) {
 
 function sentimentView(sentiment) {
   const label = sentiment?.label || 'neutral'
+  const confidence = sentiment?.confidence
   const map = {
     positive: { emoji: '😊', text: '正向', cls: 'chip-positive' },
     neutral: { emoji: '😐', text: '中立', cls: 'chip-neutral' },
     negative: { emoji: '☹️', text: '負向', cls: 'chip-negative' },
   }
   const m = map[label] || map.neutral
+  
+  // 構建標題，包含信心分數
+  let title = label
+  if (confidence !== undefined) {
+    title += ` (信心: ${(confidence * 100).toFixed(1)}%)`
+  }
+  
   return (
-    <span className={`chip ${m.cls}`} title={label}>
-      <span style={{ marginRight: 4 }}>{m.emoji}</span>{m.text}
+    <span className={`chip ${m.cls}`} title={title}>
+      <span style={{ marginRight: 4 }}>{m.emoji}</span>
+      {m.text}
+      {confidence !== undefined && (
+        <span style={{ marginLeft: 4, fontSize: '11px', opacity: 0.8 }}>
+          {(confidence * 100).toFixed(0)}%
+        </span>
+      )}
     </span>
   )
 }
@@ -114,29 +128,43 @@ function decryptText(cipher, key) {
   }
 }
 
-// Use remote API if available; map to { label, score }
+// Use remote API if available; map to { label, score, confidence, topTokens }
 async function analyzeSentimentViaApi(text) {
   try {
     const r = await inferSentiment(text)
-    const raw = (r && r.label_en) || 'neutral'
-    const label1 = raw === 'uncertain' ? 'neutral' : raw
-    let score = 0.5
-    if (Array.isArray(r?.probs) && r.probs.length >= 3) {
-      const [neg, neu, pos] = r.probs
-      const pNeu = Number(neu) || 0
-      const pPos = Number(pos) || 0
-      score = Math.max(0, Math.min(1, pPos + 0.5 * pNeu))
-    } else if (typeof r?.confidence === 'number') {
-      const c = Math.max(0, Math.min(1, r.confidence))
-      if (label1 === 'positive') score = 0.7 + 0.3 * c
-      else if (label1 === 'negative') score = 0.3 - 0.3 * c
-      else score = 0.5
+    
+    // 檢查 API 響應是否成功
+    if (!r.ok) {
+      throw new Error('API response not ok')
     }
-    const finalLabel = ['positive', 'neutral', 'negative'].includes(label1)
-      ? label1
-      : (score > 0.7 ? 'positive' : (score < 0.3 ? 'negative' : 'neutral'))
-    return { label: finalLabel, score }
+    
+    // 映射新的標籤格式
+    const labelMap = {
+      'pos': 'positive',
+      'neu': 'neutral', 
+      'neg': 'negative'
+    }
+    
+    const mappedLabel = labelMap[r.label] || 'neutral'
+    
+    // 計算分數：使用概率分布
+    let score = 0.5
+    if (r.probs && typeof r.probs === 'object') {
+      const { neg, neu, pos } = r.probs
+      // 將概率轉換為 0-1 分數：負向=0, 中立=0.5, 正向=1
+      score = pos + (neu * 0.5)
+    }
+    
+    return { 
+      label: mappedLabel, 
+      score,
+      confidence: r.confidence,
+      topTokens: r.top_tokens || [],
+      model: r.model,
+      version: r.version
+    }
   } catch (e) {
+    console.warn('API sentiment analysis failed, falling back to local:', e)
     return analyzeSentiment(text)
   }
 }

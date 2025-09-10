@@ -1,10 +1,23 @@
+export type TokenContrib = {
+  text: string;
+  contrib: number;
+  label: string;
+};
+
 export type InferResp = {
-  label_en: "negative" | "neutral" | "positive" | "uncertain";
-  label_zh: string;
+  ok: boolean;
+  label: "neg" | "neu" | "pos";
   confidence: number;
-  probs: number[];
-  threshold: number;
+  probs: {
+    neg: number;
+    neu: number;
+    pos: number;
+  };
+  top_tokens: TokenContrib[];
+  explain_method: string;
   model: string;
+  version: string;
+  threshold: number;
 };
 
 const INFER_URL = import.meta.env.VITE_INFER_URL as string;
