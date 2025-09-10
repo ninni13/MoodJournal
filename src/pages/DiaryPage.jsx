@@ -646,25 +646,7 @@ export default function DiaryPage() {
             <button className={`btn ${quickPreset === 'lastMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('lastMonth')}>上月</button>
             <button className={`btn ${quickPreset === 'custom' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('custom')}>自訂</button>
 
-            {quickPreset === 'custom' && (
-              <div style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  className="input"
-                  style={{ maxWidth: 170 }}
-                  type="date"
-                  value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setStartDate(e.target.value ? parseISO(e.target.value) : null)}
-                />
-                <span style={{ color: '#888' }}>到</span>
-                <input
-                  className="input"
-                  style={{ maxWidth: 170 }}
-                  type="date"
-                  value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
-                  onChange={(e) => setEndDate(e.target.value ? parseISO(e.target.value) : null)}
-                />
-              </div>
-            )}
+            {/* custom date range moved below to keep search aligned */}
           </div>
 
           <input
@@ -676,6 +658,29 @@ export default function DiaryPage() {
           />
         </div>
       </div>
+
+      {/* Custom date range row - placed under the filter/search row to keep search aligned */}
+      {quickPreset === 'custom' && (
+        <div className="filters-row" style={{ marginTop: 8 }}>
+          <div className="filter-actions" style={{ gap: 8 }}>
+            <input
+              className="input"
+              style={{ maxWidth: 170 }}
+              type="date"
+              value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
+              onChange={(e) => setStartDate(e.target.value ? parseISO(e.target.value) : null)}
+            />
+            <span style={{ color: '#888' }}>到</span>
+            <input
+              className="input"
+              style={{ maxWidth: 170 }}
+              type="date"
+              value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
+              onChange={(e) => setEndDate(e.target.value ? parseISO(e.target.value) : null)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Reminder settings moved to /settings */}
 
@@ -691,7 +696,7 @@ export default function DiaryPage() {
         />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <VoiceInput getContent={() => content} setContent={setContent} />
-          <button className="btn btn-primary" onClick={handleSave} disabled={!canSave}>存檔</button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={!canSave} style={{ marginLeft: 'auto' }}>存檔</button>
         </div>
       </div>
 
