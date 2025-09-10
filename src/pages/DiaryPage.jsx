@@ -917,6 +917,9 @@ function VoiceInput({ getContent, setContent }) {
   const [supported, setSupported] = useState(true)
   const [err, setErr] = useState('')
   const [interim, setInterim] = useState('')
+  const baseRef = useRef('')
+  const finalRef = useRef('')
+  const stopRequestedRef = useRef(false)
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -928,31 +931,53 @@ function VoiceInput({ getContent, setContent }) {
     r.onresult = (e) => {
       try {
         let interimText = ''
-        let finalText = ''
+        let newFinal = ''
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const res = e.results[i]
-          if (res.isFinal) finalText += res[0].transcript
+          if (res.isFinal) newFinal += res[0].transcript
           else interimText += res[0].transcript
         }
-        if (finalText) {
-          const base = getContent ? getContent() : ''
-          const merged = (base ? base + (base.endsWith('\n') || base.endsWith(' ') ? '' : ' ') : '') + finalText
-          setContent && setContent(merged)
-        }
+        if (newFinal) finalRef.current += newFinal
+        const display = `${baseRef.current}${finalRef.current}${interimText}`
+        setContent && setContent(display)
         setInterim(interimText)
       } catch {}
     }
-    r.onerror = (e) => { setErr(e?.error || 'speech error'); setListening(false) }
-    r.onend = () => { setListening(false) }
+    r.onerror = (e) => { setErr(e?.error || 'speech error'); setListening(false); setInterim('') }
+    r.onend = () => {
+      setListening(false)
+      // 確保結束時僅保留最終文字，不留暫時結果
+      setContent && setContent(`${baseRef.current}${finalRef.current}`)
+      setInterim('')
+    }
     setRecog(r)
   }, [getContent, setContent])
 
   function start() {
     setErr('')
     if (!recog) return
-    try { recog.start(); setListening(true) } catch {}
+    try {
+      stopRequestedRef.current = false
+      baseRef.current = getContent ? getContent() || '' : ''
+      // 若末尾非空白或換行，加一個空白
+      if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) {
+        baseRef.current += ' '
+      }
+      finalRef.current = ''
+      setInterim('')
+      recog.start()
+      setListening(true)
+    } catch {}
   }
-  function stop() { if (recog) try { recog.stop() } catch {}; setInterim('') }
+  function stop() {
+    stopRequestedRef.current = true
+    if (recog) {
+      try { recog.stop() } catch {}
+      try { recog.abort() } catch {}
+    }
+    setListening(false)
+    setInterim('')
+  }
 
   if (!supported) {
     return <span style={{ fontSize: 12, color: '#9ca3af' }}>此瀏覽器不支援語音輸入</span>
@@ -963,11 +988,6 @@ function VoiceInput({ getContent, setContent }) {
         {listening ? '停止語音輸入' : '開始語音輸入'}
       </button>
       {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>聆聽中…請開始說話</span>}
-      {interim && (
-        <span style={{ fontSize: 12, color: '#9ca3af' }}>
-          即時：{interim}
-        </span>
-      )}
       {err && <span style={{ fontSize: 12, color: 'crimson' }}>{err}</span>}
     </div>
   )
