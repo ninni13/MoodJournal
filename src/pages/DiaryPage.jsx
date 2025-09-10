@@ -67,30 +67,53 @@ function analyzeSentiment(text) {
 
 function sentimentView(sentiment) {
   const label = sentiment?.label || 'neutral'
-  const confidence = sentiment?.confidence
+  const confidence = typeof sentiment?.confidence === 'number' ? sentiment.confidence : undefined
+  const topTokens = Array.isArray(sentiment?.topTokens) ? sentiment.topTokens : []
   const map = {
     positive: { emoji: '😊', text: '正向', cls: 'chip-positive' },
     neutral: { emoji: '😐', text: '中立', cls: 'chip-neutral' },
     negative: { emoji: '☹️', text: '負向', cls: 'chip-negative' },
   }
   const m = map[label] || map.neutral
-  
-  // 構建標題，包含信心分數
+
+  // 標題包含信心
   let title = label
-  if (confidence !== undefined) {
-    title += ` (信心: ${(confidence * 100).toFixed(1)}%)`
-  }
-  
+  if (confidence !== undefined) title += ` (信心: ${(confidence * 100).toFixed(1)}%)`
+
+  // 信心對應飽和度（0.3~1.0），避免過淡
+  const confForCss = confidence !== undefined ? Math.max(0.3, Math.min(1, confidence)).toFixed(2) : undefined
+
   return (
-    <span className={`chip ${m.cls}`} title={title}>
-      <span style={{ marginRight: 4 }}>{m.emoji}</span>
-      {m.text}
-      {confidence !== undefined && (
-        <span style={{ marginLeft: 4, fontSize: '11px', opacity: 0.8 }}>
-          {(confidence * 100).toFixed(0)}%
+    <>
+      <span
+        className={`chip ${m.cls}`}
+        title={title}
+        data-conf={confForCss ? '1' : undefined}
+        style={confForCss ? { ['--conf']: confForCss } : undefined}
+      >
+        <span style={{ marginRight: 4 }}>{m.emoji}</span>
+        {m.text}
+        {confidence !== undefined && (
+          <span style={{ marginLeft: 4, fontSize: '11px', opacity: 0.9 }}>
+            {(confidence * 100).toFixed(0)}%
+          </span>
+        )}
+      </span>
+
+      {topTokens.length > 0 && (
+        <span className="kw-tags">
+          {topTokens.slice(0, 4).map((t, i) => {
+            const tagCls = t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')
+            const pct = typeof t.contrib === 'number' ? (t.contrib * 100).toFixed(1) : '–'
+            return (
+              <span key={i} className={`kw-tag ${tagCls}`} title={`貢獻度 ${pct}%`}>
+                {t.text}
+              </span>
+            )
+          })}
         </span>
       )}
-    </span>
+    </>
   )
 }
 

@@ -375,6 +375,37 @@ input[type="time"].input { padding-right: 0.6rem; }
 .chip-negative { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 .chip-pending  { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
 
+/* 信心驅動的飽和度：以 CSS 變數控制色彩強度 */
+.chip[data-conf] {
+  --sat: calc(var(--conf, 0.5));
+}
+.chip-positive[data-conf] { background: rgba(16, 185, 129, calc(0.1 + var(--sat) * 0.35)); border-color: rgba(16,185,129, calc(0.25 + var(--sat) * 0.45)); color: #065f46; }
+.chip-neutral[data-conf]  { background: rgba(107, 114, 128, calc(0.08 + var(--sat) * 0.25)); border-color: rgba(156,163,175, calc(0.25 + var(--sat) * 0.35)); color: #374151; }
+.chip-negative[data-conf] { background: rgba(239, 68, 68,  calc(0.1 + var(--sat) * 0.35)); border-color: rgba(239, 68, 68,  calc(0.25 + var(--sat) * 0.45)); color: #991b1b; }
+
+/* 關鍵詞小標籤 */
+.kw-tags { display: inline-flex; gap: 6px; margin-left: 6px; flex-wrap: wrap; }
+.kw-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  height: 18px;
+  line-height: 18px;
+  border-radius: 6px;
+  font-size: 11px;
+  border: 1px solid transparent;
+  color: #374151;
+}
+.kw-neg { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.kw-neu { background: #f3f4f6; border-color: #e5e7eb; color: #374151; }
+.kw-pos { background: #dcfce7; border-color: #86efac; color: #065f46; }
+
+@media (prefers-color-scheme: dark) {
+  .kw-neg { background: #3a0f0f; border-color: #7f1d1d; color: #fecaca; }
+  .kw-neu { background: #1f2430; border-color: #2f3338; color: #e5e7eb; }
+  .kw-pos { background: #052e2b; border-color: #064e3b; color: #a7f3d0; }
+}
+
 @media (prefers-color-scheme: dark) {
   .chip-positive { background: #052e2b; color: #a7f3d0; border-color: #064e3b; }
   .chip-neutral  { background: #1f2430; color: #e5e7eb; border-color: #2f3338; }
