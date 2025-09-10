@@ -124,7 +124,7 @@ export default function TrashPage() {
                     </span>
                   )}
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div className="entry-actions">
                   <button className="btn btn-secondary" onClick={() => restore(e.id)}>還原</button>
                   <button className="btn btn-danger" onClick={() => hardDelete(e.id)}>永久刪除</button>
                 </div>

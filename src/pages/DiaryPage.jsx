@@ -671,12 +671,12 @@ export default function DiaryPage() {
                   )}
                 </div>
                 {editingId === e.id ? (
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div className="entry-actions">
                     <button className="btn btn-primary" onClick={() => saveEdit(e.id)}>儲存</button>
                     <button className="btn btn-secondary" onClick={() => { setEditingId(null); setEditingText('') }}>取消</button>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div className="entry-actions">
                     <button className="btn btn-outline" onClick={() => startEdit(e.id, e.content)}>編輯</button>
                     <button className="btn btn-danger" onClick={() => softDelete(e.id)}>刪除</button>
                   </div>
