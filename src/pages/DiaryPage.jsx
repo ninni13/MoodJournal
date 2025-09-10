@@ -876,8 +876,11 @@ export default function DiaryPage() {
                                 {(() => {
                                   const s = e.sentiment || {}
                                   const label = s.label || 'neutral'
-                                  const labelZh = label === 'positive' ? '正向' : (label === 'negative' ? '負向' : '中立')
-                                  return <span style={{ fontSize: 13, color: '#9ca3af' }}>{labelZh}</span>
+                                  const cls = label === 'positive' ? 'chip-positive' : (label === 'negative' ? 'chip-negative' : 'chip-neutral')
+                                  const text = label === 'positive' ? '正向' : (label === 'negative' ? '負向' : '中立')
+                                  return (
+                                    <span className={`chip ${cls}`} style={{ padding: '0 10px', height: 22, lineHeight: '22px' }}>{text}</span>
+                                  )
                                 })()}
                                 <span style={{ fontSize: 13, color: '#9ca3af' }}>｜ 關鍵字top5：</span>
                                 <span className="kw-tags" style={{ marginLeft: 0 }}>

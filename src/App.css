@@ -371,7 +371,7 @@ input[type="time"].input { padding-right: 0.6rem; }
   white-space: nowrap;
 }
 .chip-positive { background: #10b981; color: #fff; border-color: #10b981; }
-.chip-neutral  { background: #f3f4f6; color: #374151; border-color: #e5e7eb; }
+.chip-neutral  { background: #6b7280; color: #fff; border-color: #6b7280; }
 .chip-negative { background: #ef4444; color: #fff; border-color: #ef4444; }
 .chip-pending  { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
 
@@ -380,7 +380,7 @@ input[type="time"].input { padding-right: 0.6rem; }
   --sat: calc(var(--conf, 0.5));
 }
 .chip-positive[data-conf] { background: rgba(16, 185, 129, calc(0.35 + var(--sat) * 0.45)); border-color: rgba(16,185,129, calc(0.6 + var(--sat) * 0.4)); color: #fff; }
-.chip-neutral[data-conf]  { background: rgba(107, 114, 128, calc(0.08 + var(--sat) * 0.25)); border-color: rgba(156,163,175, calc(0.25 + var(--sat) * 0.35)); color: #374151; }
+.chip-neutral[data-conf]  { background: rgba(107, 114, 128, calc(0.35 + var(--sat) * 0.35)); border-color: rgba(107,114,128, calc(0.6 + var(--sat) * 0.4)); color: #fff; }
 .chip-negative[data-conf] { background: rgba(239, 68, 68,  calc(0.35 + var(--sat) * 0.45)); border-color: rgba(239, 68, 68,  calc(0.6 + var(--sat) * 0.4)); color: #fff; }
 
 /* 關鍵詞小標籤 */
