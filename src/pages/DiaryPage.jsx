@@ -647,7 +647,7 @@ export default function DiaryPage() {
             <button className={`btn ${quickPreset === 'custom' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('custom')}>自訂</button>
 
             {quickPreset === 'custom' && (
-              <>
+              <div style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center' }}>
                 <input
                   className="input"
                   style={{ maxWidth: 170 }}
@@ -663,7 +663,7 @@ export default function DiaryPage() {
                   value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
                   onChange={(e) => setEndDate(e.target.value ? parseISO(e.target.value) : null)}
                 />
-              </>
+              </div>
             )}
           </div>
 
@@ -691,11 +691,7 @@ export default function DiaryPage() {
         />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <VoiceInput getContent={() => content} setContent={setContent} />
-        </div>
-        <div className="actions">
-          <button className="btn btn-primary" onClick={handleSave} disabled={!canSave}>
-            存檔
-          </button>
+          <button className="btn btn-primary" onClick={handleSave} disabled={!canSave}>存檔</button>
         </div>
       </div>
 
