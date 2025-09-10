@@ -690,7 +690,7 @@ export default function DiaryPage() {
           rows={6}
         />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <VoiceInput onAppend={(txt) => setContent(prev => (prev ? prev + (prev.endsWith('\n') ? '' : ' ') + txt : txt))} />
+          <VoiceInput getContent={() => content} setContent={setContent} />
         </div>
         <div className="actions">
           <button className="btn btn-primary" onClick={handleSave} disabled={!canSave}>
@@ -911,11 +911,12 @@ export default function DiaryPage() {
   )
 }
 
-function VoiceInput({ onAppend }) {
+function VoiceInput({ getContent, setContent }) {
   const [recog, setRecog] = useState(null)
   const [listening, setListening] = useState(false)
   const [supported, setSupported] = useState(true)
   const [err, setErr] = useState('')
+  const [interim, setInterim] = useState('')
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -926,12 +927,19 @@ function VoiceInput({ onAppend }) {
     r.continuous = true
     r.onresult = (e) => {
       try {
+        let interimText = ''
         let finalText = ''
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const res = e.results[i]
           if (res.isFinal) finalText += res[0].transcript
+          else interimText += res[0].transcript
         }
-        if (finalText && onAppend) onAppend(finalText.trim())
+        if (finalText) {
+          const base = getContent ? getContent() : ''
+          const merged = (base ? base + (base.endsWith('\n') || base.endsWith(' ') ? '' : ' ') : '') + finalText
+          setContent && setContent(merged)
+        }
+        setInterim(interimText)
       } catch {}
     }
     r.onerror = (e) => { setErr(e?.error || 'speech error'); setListening(false) }
@@ -944,7 +952,7 @@ function VoiceInput({ onAppend }) {
     if (!recog) return
     try { recog.start(); setListening(true) } catch {}
   }
-  function stop() { if (recog) try { recog.stop() } catch {} }
+  function stop() { if (recog) try { recog.stop() } catch {}; setInterim('') }
 
   if (!supported) {
     return <span style={{ fontSize: 12, color: '#9ca3af' }}>此瀏覽器不支援語音輸入</span>
@@ -955,6 +963,11 @@ function VoiceInput({ onAppend }) {
         {listening ? '停止語音輸入' : '開始語音輸入'}
       </button>
       {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>聆聽中…請開始說話</span>}
+      {interim && (
+        <span style={{ fontSize: 12, color: '#9ca3af' }}>
+          即時：{interim}
+        </span>
+      )}
       {err && <span style={{ fontSize: 12, color: 'crimson' }}>{err}</span>}
     </div>
   )
