@@ -84,7 +84,7 @@ function sentimentView(sentiment) {
   const confForCss = confidence !== undefined ? Math.max(0.3, Math.min(1, confidence)).toFixed(2) : undefined
 
   return (
-    <>
+    <span className="chip-wrap">
       <span
         className={`chip ${m.cls}`}
         title={title}
@@ -101,19 +101,22 @@ function sentimentView(sentiment) {
       </span>
 
       {topTokens.length > 0 && (
-        <span className="kw-tags">
-          {topTokens.slice(0, 4).map((t, i) => {
-            const tagCls = t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')
-            const pct = typeof t.contrib === 'number' ? (t.contrib * 100).toFixed(1) : '–'
-            return (
-              <span key={i} className={`kw-tag ${tagCls}`} title={`貢獻度 ${pct}%`}>
-                {t.text}
-              </span>
-            )
-          })}
-        </span>
+        <div className="kw-popover">
+          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>關鍵詞</div>
+          <span className="kw-tags">
+            {topTokens.slice(0, 8).map((t, i) => {
+              const tagCls = t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')
+              const pct = typeof t.contrib === 'number' ? (t.contrib * 100).toFixed(1) : '–'
+              return (
+                <span key={i} className={`kw-tag ${tagCls}`} title={`貢獻度 ${pct}%`}>
+                  {t.text}
+                </span>
+              )
+            })}
+          </span>
+        </div>
       )}
-    </>
+    </span>
   )
 }
 
@@ -865,8 +868,13 @@ export default function DiaryPage() {
                       <ul className="entries">
                         {selectedDayItems.map(e => (
                           <li key={e.id} className="entry">
-                            <div className="entry-main">
-                              <span className="entry-full">{e.content}</span>
+                            <div className="entry-main" style={{ alignItems: 'flex-start' }}>
+                              <div className="entry-full" style={{ whiteSpace: 'pre-wrap' }}>{e.content}</div>
+                              {e.sentiment && (
+                                <div style={{ marginLeft: 8 }}>
+                                  {sentimentView(e.sentiment)}
+                                </div>
+                              )}
                             </div>
                           </li>
                         ))}

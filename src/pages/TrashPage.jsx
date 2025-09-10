@@ -128,31 +128,36 @@ export default function TrashPage() {
                         const title = conf !== undefined ? `${label} (信心 ${(conf * 100).toFixed(1)}%)` : label
                         const confCss = conf !== undefined ? Math.max(0.3, Math.min(1, conf)).toFixed(2) : undefined
                         return (
-                          <span
-                            className={`chip ${cls}`}
-                            style={{ marginLeft: 8, ...(confCss ? { ['--conf']: confCss } : {}) }}
-                            data-conf={confCss ? '1' : undefined}
-                            title={title}
-                          >
-                            {(label === 'positive' && '😊 正向') || (label === 'negative' && '☹️ 負向') || '😐 中立'}
-                            {conf !== undefined && (
-                              <span style={{ marginLeft: 4, fontSize: '11px', opacity: 0.9 }}>
-                                {(conf * 100).toFixed(0)}%
-                              </span>
+                          <span className="chip-wrap" style={{ marginLeft: 8 }}>
+                            <span
+                              className={`chip ${cls}`}
+                              style={{ ...(confCss ? { ['--conf']: confCss } : {}) }}
+                              data-conf={confCss ? '1' : undefined}
+                              title={title}
+                            >
+                              {(label === 'positive' && '😊 正向') || (label === 'negative' && '☹️ 負向') || '😐 中立'}
+                              {conf !== undefined && (
+                                <span style={{ marginLeft: 4, fontSize: '11px', opacity: 0.9 }}>
+                                  {(conf * 100).toFixed(0)}%
+                                </span>
+                              )}
+                            </span>
+                            {Array.isArray(s.topTokens) && s.topTokens.length > 0 && (
+                              <div className="kw-popover">
+                                <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>關鍵詞</div>
+                                <span className="kw-tags">
+                                  {s.topTokens.slice(0, 8).map((t, i) => (
+                                    <span key={i} className={`kw-tag ${t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')}`} title={`貢獻度 ${(t.contrib * 100).toFixed(1)}%`}>
+                                      {t.text}
+                                    </span>
+                                  ))}
+                                </span>
+                              </div>
                             )}
                           </span>
                         )
                       })()}
-
-                      {Array.isArray(e.sentiment.topTokens) && e.sentiment.topTokens.length > 0 && (
-                        <span className="kw-tags">
-                          {e.sentiment.topTokens.slice(0, 4).map((t, i) => (
-                            <span key={i} className={`kw-tag ${t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')}`} title={`貢獻度 ${(t.contrib * 100).toFixed(1)}%`}>
-                              {t.text}
-                            </span>
-                          ))}
-                        </span>
-                      )}
+                      
                     </>
                   )}
                 </div>

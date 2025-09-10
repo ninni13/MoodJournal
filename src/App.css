@@ -400,6 +400,16 @@ input[type="time"].input { padding-right: 0.6rem; }
 .kw-neu { background: #f3f4f6; border-color: #e5e7eb; color: #374151; }
 .kw-pos { background: #dcfce7; border-color: #86efac; color: #065f46; }
 
+/* 關鍵詞浮層：僅在 hover chip 時顯示 */
+.chip-wrap { position: relative; display: inline-flex; align-items: center; }
+.kw-popover { display: none; position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; background: #fff; color: #111827; border: 1px solid #e5e7eb; border-radius: 8px; padding: 6px 8px; box-shadow: 0 8px 24px rgba(0,0,0,.12); }
+.chip-wrap:hover .kw-popover { display: block; }
+.kw-popover .kw-tags { margin-left: 0; }
+
+@media (prefers-color-scheme: dark) {
+  .kw-popover { background: #0b0d10; color: #e5e7eb; border-color: #2f3338; }
+}
+
 @media (prefers-color-scheme: dark) {
   .kw-neg { background: #3a0f0f; border-color: #7f1d1d; color: #fecaca; }
   .kw-neu { background: #1f2430; border-color: #2f3338; color: #e5e7eb; }
