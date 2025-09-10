@@ -919,6 +919,7 @@ function VoiceInput({ getContent, setContent }) {
   const [interim, setInterim] = useState('')
   const baseRef = useRef('')
   const finalRef = useRef('')
+  const lastAppendAtRef = useRef(0)
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -935,6 +936,33 @@ function VoiceInput({ getContent, setContent }) {
           if (res.isFinal) newFinal += res[0].transcript
           else interimText += res[0].transcript
         }
+        // 轉換口令為標點
+        const normalizeChunk = (s) => {
+          if (!s) return ''
+          let t = String(s)
+          // 語音口令 → 標點
+          t = t.replace(/逗[點点]/g, '，')
+               .replace(/句[號号点]/g, '。')
+               .replace(/問[號号]/g, '？')
+               .replace(/驚嘆[號号]|感嘆[號号]/g, '！')
+               .replace(/冒[號号]/g, '：')
+               .replace(/分[號号]/g, '；')
+               .replace(/頓[號号]/g, '、')
+               .replace(/換行/g, '\n')
+               .replace(/空格/g, ' ')
+          return t
+        }
+        newFinal = normalizeChunk(newFinal)
+        interimText = normalizeChunk(interimText)
+
+        // 依停頓時間自動補逗點：若距離上次確定文字 > 1200ms 且最後一字非標點，先補逗點
+        if (newFinal) {
+          const now = Date.now()
+          const needComma = finalRef.current && !/[，。！？；、：\n]$/.test(finalRef.current) && (now - (lastAppendAtRef.current || 0) >= 1200)
+          if (needComma) finalRef.current += '，'
+          lastAppendAtRef.current = now
+        }
+
         if (newFinal) finalRef.current += newFinal
         const display = `${baseRef.current}${finalRef.current}${interimText}`
         setContent && setContent(display)
@@ -970,6 +998,7 @@ function VoiceInput({ getContent, setContent }) {
     if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) baseRef.current += ' '
     finalRef.current = ''
     setInterim('')
+    lastAppendAtRef.current = Date.now()
     try { r.start(); setRecog(r); setListening(true) } catch {}
   }
   function stop() {
