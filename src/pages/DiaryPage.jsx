@@ -945,7 +945,7 @@ function VoiceInput({ getContent, setContent }) {
     r.onerror = (e) => { setErr(e?.error || 'speech error'); setListening(false) }
     r.onend = () => { setListening(false) }
     setRecog(r)
-  }, [onAppend])
+  }, [getContent, setContent])
 
   function start() {
     setErr('')
