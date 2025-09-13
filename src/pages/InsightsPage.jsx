@@ -5,6 +5,7 @@ import { db } from '../lib/firebase.js'
 import { collection, getDocs, orderBy, query } from 'firebase/firestore'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter, subDays } from 'date-fns'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
+import { useTheme } from '../state/ThemeContext.jsx'
 import '../App.css'
 
 function todayKey() {
@@ -35,6 +36,7 @@ function summary(text, max = 30) {
 
 export default function InsightsPage() {
   const { currentUser } = useAuth()
+  const { mode } = useTheme()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [items, setItems] = useState([])
@@ -144,9 +146,24 @@ export default function InsightsPage() {
             <div style={{ width: '100%', height: 320 }}>
               <ResponsiveContainer>
                 <LineChart data={lineData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tickFormatter={(v) => format(parseISO(v), 'MM/dd')} minTickGap={20} />
-                  <YAxis domain={[0, 1]} tickCount={6} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={(v) => format(parseISO(v), 'MM/dd')}
+                    minTickGap={20}
+                    stroke="var(--chart-axis)"
+                    tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
+                    tickLine={{ stroke: 'var(--chart-axis)' }}
+                    axisLine={{ stroke: 'var(--chart-axis)' }}
+                  />
+                  <YAxis
+                    domain={[0, 1]}
+                    tickCount={6}
+                    stroke="var(--chart-axis)"
+                    tick={{ fill: 'var(--chart-tick)', fontSize: 12 }}
+                    tickLine={{ stroke: 'var(--chart-axis)' }}
+                    axisLine={{ stroke: 'var(--chart-axis)' }}
+                  />
                   <Tooltip labelFormatter={(v) => format(parseISO(v), 'yyyy/MM/dd')} formatter={(val) => [val?.toFixed?.(2), 'score']} />
                   <Line type="monotone" dataKey="score" stroke="#d36f72" strokeWidth={2} dot={{ r: 2 }} connectNulls />
                 </LineChart>
@@ -221,4 +238,3 @@ export default function InsightsPage() {
     </div>
   )
 }
-

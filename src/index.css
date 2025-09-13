@@ -3,14 +3,46 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  /* Theme variables */
+  --app-bg: #111315;
+  --fg: rgba(255, 255, 255, 0.87);
+  --muted-fg: rgba(255, 255, 255, 0.75);
+  --surface: #1a1a1a;
+  /* Charts */
+  --chart-grid: #2f3338;
+  --chart-axis: #6b7280;
+  --chart-tick: #9ca3af;
+
+  color-scheme: dark;
+  color: var(--fg);
+  background-color: var(--app-bg);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Light/Dark forcing via data-theme attribute */
+:root[data-theme="light"] {
+  --app-bg: #f3f4f6;  /* light gray background */
+  --fg: #1f2328;
+  --muted-fg: rgba(17, 24, 39, 0.72);
+  --surface: #eef1f5; /* controls surface light gray */
+  --chart-grid: #9ca3af; /* darker grid for better contrast */
+  --chart-axis: #9ca3af;
+  --chart-tick: #6b7280;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --app-bg: #111315;
+  --fg: rgba(255, 255, 255, 0.87);
+  --muted-fg: rgba(255, 255, 255, 0.75);
+  --surface: #1a1a1a;
+  --chart-grid: #2f3338;
+  --chart-axis: #9ca3af;
+  --chart-tick: #e5e7eb;
+  color-scheme: dark;
 }
 
 a {
@@ -52,15 +84,30 @@ button:focus-visible {
   outline: none; /* 移除預設藍色聚焦外框 */
 }
 
+/* Keep hover styles */
 @media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #e08486;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+  a:hover { color: #e08486; }
+  button { background-color: inherit; }
 }
+
+/* Light theme: make inputs and non-primary buttons light gray */
+:root[data-theme="light"] .input,
+:root[data-theme="light"] select.input,
+:root[data-theme="light"] .textarea { background: var(--surface); color: #1f2328; border-color: #d0d7de; }
+
+:root[data-theme="light"] .btn-secondary,
+:root[data-theme="light"] .btn-outline { background: var(--surface); border-color: #d0d7de; color: #1f2328; }
+
+/* Keep hover light or unchanged for filter buttons in light theme */
+:root[data-theme="light"] .btn-secondary:hover:not(:disabled) { background: var(--surface); border-color: #d36f72; color: #d36f72; }
+:root[data-theme="light"] .btn-outline:hover:not(:disabled) { background: var(--surface); border-color: #d36f72; color: #d36f72; }
+
+/* Login Google button also light gray in light theme */
+:root[data-theme="light"] .btn-google { background: var(--surface); border-color: #e5e7eb; color: #1f2328; }
+
+/* Generic buttons (without .btn) should be light in light theme */
+:root[data-theme="light"] button:not(.btn) { background-color: var(--surface); color: #1f2328; border-color: #d0d7de; }
+:root[data-theme="light"] button:not(.btn):hover { background-color: #f6f8fa; border-color: #d36f72; color: #d36f72; }
+
+/* Google button hover lightening */
+:root[data-theme="light"] .btn-google:hover { background-color: #f6f8fa; border-color: #d36f72; color: #d36f72; }

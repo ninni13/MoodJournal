@@ -80,8 +80,8 @@ export default function LoginPage() {
 
           <p className="login-legal">
             使用本服務即表示你同意 
-            <Link to="/privacy">隱私權政策</Link> 與 
-            <Link to="/terms">服務條款</Link>。
+            <Link to="/privacy"> 隱私權政策 </Link>與
+            <Link to="/terms"> 服務條款 </Link>。
           </p>
         </section>
       </main>

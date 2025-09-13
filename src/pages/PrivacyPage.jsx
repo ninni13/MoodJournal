@@ -33,7 +33,7 @@ export default function PrivacyPage() {
       <ul style={{ lineHeight: 1.8 }}>
         <li>您可以隨時要求刪除帳號與所有日記紀錄。</li>
         <li>
-          若有相關需求，請聯絡我們（Email: <a href="mailto:your-email@example.com">your-email@example.com</a>）。
+          若有相關需求，請聯絡我們（Email: <a href="mailto:zoe.yang.tw@gmail.com">zoe.yang.tw@gmail.com</a>）。
         </li>
       </ul>
 

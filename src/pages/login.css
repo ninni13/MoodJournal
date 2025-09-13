@@ -1,6 +1,6 @@
 /* Login Page Styles */
 .login-screen { position: fixed; inset: 0; display: grid; place-items: center; z-index: 0; }
-.login-bg { position: absolute; inset: 0; background: #1f0a10; }
+.login-bg { position: absolute; inset: 0; background: var(--app-bg); }
 .login-bg::after { content: ""; position: absolute; inset: 0; background-image: url('/noise.svg'); opacity: .03; pointer-events: none; }
 .login-main { position: relative; z-index: 1; width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .login-card {
@@ -16,7 +16,7 @@
 }
 .login-header { margin-bottom: 14px; text-align: center; }
 .login-title { font-size: 32px; font-weight: 600; letter-spacing: 0.2px; margin: 0 0 6px; }
-.login-desc { font-size: 15.5px; line-height: 1.7; color: rgba(255,255,255,0.8); margin: 0; }
+.login-desc { font-size: 15.5px; line-height: 1.7; color: var(--muted-fg); margin: 0; }
 
 .login-actions { margin-top: 14px; display: flex; align-items: center; justify-content: center; }
 .btn-google {
@@ -34,14 +34,14 @@
 .icon { display: inline-block; vertical-align: middle; }
 .icon-muted { color: rgba(255,255,255,0.7); margin-right: 6px; }
 
-.login-privacy { margin-top: 16px; font-size: 12.5px; color: rgba(255,255,255,0.6); display: grid; gap: 8px; }
+.login-privacy { margin-top: 16px; font-size: 12.5px; color: var(--muted-fg); display: grid; gap: 8px; }
 .privacy-item { display: inline-flex; align-items: center; gap: 6px; }
 
-.login-hint { margin-top: 12px; color: rgba(255,255,255,0.75); font-size: 13px; text-align: center; }
+.login-hint { margin-top: 12px; color: var(--muted-fg); font-size: 13px; text-align: center; }
 .login-error { margin-top: 10px; color: #fecaca; font-size: 14px; text-align: center; }
 
 /* Legal links inside card bottom */
-.login-legal { margin-top: 14px; text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); }
+.login-legal { margin-top: 14px; text-align: center; font-size: 12px; color: var(--muted-fg); }
 .login-legal a { color: inherit; text-decoration: underline; transition: color .12s ease; }
 .login-legal a:hover { color: #ffffff; }
 

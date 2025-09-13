@@ -5,9 +5,11 @@ import { db } from '../lib/firebase.js'
 import { doc, getDoc, setDoc, collection, getDocs } from 'firebase/firestore'
 import CryptoJS from 'crypto-js'
 import '../App.css'
+import { useTheme } from '../state/ThemeContext.jsx'
 
 export default function SettingsPage() {
   const { currentUser } = useAuth()
+  const { mode: themeMode, setMode: setThemeMode } = useTheme()
   const defaultTZ = 'Asia/Taipei'
   const [email, setEmail] = useState(currentUser?.email || '')
   const [reminderEnabled, setReminderEnabled] = useState(false)
@@ -236,6 +238,29 @@ export default function SettingsPage() {
         <h1 className="title" style={{ marginBottom: 0 }}>設定</h1>
         <div>
           <Link to="/" style={{ marginRight: '0.75rem', fontSize: 14 }}>返回</Link>
+        </div>
+      </div>
+
+      <div className="list" style={{ marginTop: '1rem' }}>
+        <h2 className="subtitle">顏色主題</h2>
+        <div className="filters" style={{ marginTop: 8 }}>
+          <div role="group" aria-label="顏色主題" className="filters-row" style={{ alignItems: 'center', gap: 12 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <input type="radio" name="theme" value="system" checked={themeMode === 'system'} onChange={() => setThemeMode('system')} />
+              跟隨系統
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <input type="radio" name="theme" value="light" checked={themeMode === 'light'} onChange={() => setThemeMode('light')} />
+              淺色
+            </label>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <input type="radio" name="theme" value="dark" checked={themeMode === 'dark'} onChange={() => setThemeMode('dark')} />
+              深色
+            </label>
+          </div>
+          <div style={{ marginTop: 6, color: '#888', fontSize: 12 }}>
+            立即套用於此裝置（儲存在本機）。
+          </div>
         </div>
       </div>
 
