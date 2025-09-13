@@ -17,6 +17,8 @@ jobs:
       PRIVATE_KEY:         ${{ secrets.PRIVATE_KEY }}
       SENDGRID_API_KEY:    ${{ secrets.SENDGRID_API_KEY }}
       FROM_EMAIL:          ${{ secrets.FROM_EMAIL }}
+      FROM_NAME:           ${{ secrets.FROM_NAME }}
+      APP_URL:             ${{ secrets.APP_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
