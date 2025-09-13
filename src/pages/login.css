@@ -1,6 +1,6 @@
 /* Login Page Styles */
 .login-screen { position: fixed; inset: 0; display: grid; place-items: center; z-index: 0; }
-.login-bg { position: absolute; inset: 0; background: #25151a; }
+.login-bg { position: absolute; inset: 0; background: #1f0a10; }
 .login-bg::after { content: ""; position: absolute; inset: 0; background-image: url('/noise.svg'); opacity: .03; pointer-events: none; }
 .login-main { position: relative; z-index: 1; width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .login-card {

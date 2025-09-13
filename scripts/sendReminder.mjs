@@ -5,7 +5,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const { FIREBASE_PROJECT_ID, CLIENT_EMAIL, PRIVATE_KEY, SENDGRID_API_KEY, FROM_EMAIL, FROM_NAME, APP_URL } = process.env
-const WEB_URL = APP_URL || 'http://localhost:5173'
+const WEB_URL = (APP_URL || 'http://localhost:5173').trim()
 const SENDER = { email: FROM_EMAIL, name: FROM_NAME || 'Mood Journal' }
 
 // 嘗試讀 serviceAccount.json；容錯鍵名
@@ -35,6 +35,7 @@ const db = admin.firestore()
 console.log('[whoami] env projectId   =', process.env.FIREBASE_PROJECT_ID)
 console.log('[whoami] sa clientEmail  =', (clientEmail || '').slice(0, 20) + '…')
 console.log('[whoami] admin.projectId =', admin.app().options?.projectId || '(none)')
+console.log('[whoami] WEB_URL         =', WEB_URL)
 
 if (!SENDGRID_API_KEY || !FROM_EMAIL) {
   console.error('[reminder] Missing SENDGRID_API_KEY or FROM_EMAIL env')

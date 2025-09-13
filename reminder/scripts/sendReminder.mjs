@@ -14,7 +14,7 @@ const {
   APP_URL,
 } = process.env
 
-const WEB_URL = APP_URL || 'http://localhost:5173'
+const WEB_URL = (APP_URL || 'http://localhost:5173').trim()
 const SENDER = { email: FROM_EMAIL, name: FROM_NAME || 'Mood Journal' }
 
 // Attempt to load serviceAccount.json from repo (prefer file over env)
@@ -65,6 +65,7 @@ console.log('[whoami] init source     =', serviceAccount ? 'serviceAccount.json'
 console.log('[whoami] env projectId   =', process.env.FIREBASE_PROJECT_ID)
 console.log('[whoami] sa clientEmail  =', (serviceAccount?.client_email || process.env.CLIENT_EMAIL || '').slice(0, 20) + '…')
 console.log('[whoami] admin.projectId =', admin.app().options?.projectId || '(none)')
+console.log('[whoami] WEB_URL         =', WEB_URL)
 
 if (!SENDGRID_API_KEY || !FROM_EMAIL) {
   console.error('[reminder] Missing SENDGRID_API_KEY or FROM_EMAIL env')
