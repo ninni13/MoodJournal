@@ -111,3 +111,13 @@ button:focus-visible {
 
 /* Google button hover lightening */
 :root[data-theme="light"] .btn-google:hover { background-color: #f6f8fa; border-color: #d36f72; color: #d36f72; }
+
+/* Light theme: popover for keywords (top5) uses light gray surface */
+:root[data-theme="light"] .kw-popover { background: var(--surface) !important; border-color: #d0d7de !important; color: #1f2328 !important; }
+
+/* Light theme: keyword chips in popover use light gray surface */
+:root[data-theme="light"] .kw-popover .kw-tag { background: var(--surface) !important; border-color: #d0d7de !important; color: #1f2328 !important; }
+
+/* Keep positive = green, negative = pink in light theme */
+:root[data-theme="light"] .kw-popover .kw-tag.kw-pos { background: #dcfce7 !important; border-color: #86efac !important; color: #065f46 !important; }
+:root[data-theme="light"] .kw-popover .kw-tag.kw-neg { background: #fee2e2 !important; border-color: #fca5a5 !important; color: #991b1b !important; }

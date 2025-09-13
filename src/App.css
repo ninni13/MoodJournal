@@ -396,9 +396,9 @@ input[type="time"].input { padding-right: 0.6rem; }
   border: 1px solid transparent;
   color: #374151;
 }
-.kw-neg { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
-.kw-neu { background: #f3f4f6; border-color: #e5e7eb; color: #374151; }
 .kw-pos { background: #dcfce7; border-color: #86efac; color: #065f46; }
+.kw-neu { background: #f3f4f6; border-color: #e5e7eb; color: #374151; }
+.kw-neg { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
 
 /* 關鍵詞浮層：僅在 hover chip 時顯示 */
 .chip-wrap { position: relative; display: inline-flex; align-items: center; }
@@ -411,9 +411,9 @@ input[type="time"].input { padding-right: 0.6rem; }
 }
 
 @media (prefers-color-scheme: dark) {
-  .kw-neg { background: #3a0f0f; border-color: #7f1d1d; color: #fecaca; }
-  .kw-neu { background: #1f2430; border-color: #2f3338; color: #e5e7eb; }
   .kw-pos { background: #052e2b; border-color: #064e3b; color: #a7f3d0; }
+  .kw-neu { background: #1f2430; border-color: #2f3338; color: #e5e7eb; }
+  .kw-neg { background: #3a0f0f; border-color: #7f1d1d; color: #fecaca; }
 }
 
 @media (prefers-color-scheme: dark) {
