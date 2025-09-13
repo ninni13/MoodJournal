@@ -111,18 +111,23 @@ async function hasDiaryToday(uid) {
 }
 
 async function main() {
-  const usersSnap = await db.collection('users').get()
+  // Use collectionGroup so parent user doc is not required to exist
+  const profSnap = await db.collectionGroup('profile').get()
+  console.log('[debug] profiles found =', profSnap.size)
+
   let sent = 0, skipped = 0
-  for (const userDoc of usersSnap.docs) {
-    const uid = userDoc.id
-    const profRef = db.collection('users').doc(uid).collection('profile').doc('default')
-    const profSnap = await profRef.get().catch(() => null)
-    const email = profSnap?.exists ? profSnap.get('email') : null
-    const enabled = profSnap?.exists ? profSnap.get('reminderEnabled') === true : false
-    if (!email || !enabled) { skipped++; continue }
+  let reasons = { noEmail: 0, disabled: 0, wrote: 0 }
+
+  for (const d of profSnap.docs) {
+    const uid = d.ref.parent.parent?.id
+    if (!uid) { skipped++; continue }
+    const email = d.get('email')
+    const enabled = d.get('reminderEnabled') === true
+    if (!email) { skipped++; reasons.noEmail++; continue }
+    if (!enabled) { skipped++; reasons.disabled++; continue }
 
     const wrote = await hasDiaryToday(uid)
-    if (wrote) { skipped++; continue }
+    if (wrote) { skipped++; reasons.wrote++; continue }
 
     await sgMail.send({
       to: email,
@@ -136,7 +141,7 @@ async function main() {
     sent++
     await new Promise(r => setTimeout(r, 200))
   }
-  console.log(JSON.stringify({ sent, skipped }))
+  console.log(JSON.stringify({ sent, skipped, reasons }))
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

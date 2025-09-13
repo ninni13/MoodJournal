@@ -1,0 +1,65 @@
+/* Login Page Styles */
+.login-screen { position: fixed; inset: 0; display: grid; place-items: center; z-index: 0; }
+.login-bg { position: absolute; inset: 0; background: #25151a; }
+.login-bg::after { content: ""; position: absolute; inset: 0; background-image: url('/noise.svg'); opacity: .03; pointer-events: none; }
+.login-main { position: relative; z-index: 1; width: 100%; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login-card {
+  width: clamp(480px, 92vw, 560px);
+  border-radius: 16px;
+  padding: 28px 24px 22px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255,255,255,0.14);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  animation: card-in .12s ease-out;
+}
+.login-header { margin-bottom: 14px; text-align: center; }
+.login-title { font-size: 32px; font-weight: 600; letter-spacing: 0.2px; margin: 0 0 6px; }
+.login-desc { font-size: 15.5px; line-height: 1.7; color: rgba(255,255,255,0.8); margin: 0; }
+
+.login-actions { margin-top: 14px; display: flex; align-items: center; justify-content: center; }
+.btn-google {
+  background: #ffffff;
+  color: #111827;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.12), inset 0 -1px 0 rgba(0,0,0,0.04);
+  padding: 0.7rem 1.05rem;
+  min-height: 42px;
+}
+.btn-google:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(0,0,0,0.18), inset 0 -1px 0 rgba(0,0,0,0.06); }
+.btn-google:focus-visible { box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35), 0 6px 18px rgba(0,0,0,0.12); }
+
+.spinner { width: 16px; height: 16px; border-radius: 999px; border: 2px solid rgba(17,24,39,0.15); border-top-color: #111827; animation: spin .8s linear infinite; }
+.icon { display: inline-block; vertical-align: middle; }
+.icon-muted { color: rgba(255,255,255,0.7); margin-right: 6px; }
+
+.login-privacy { margin-top: 16px; font-size: 12.5px; color: rgba(255,255,255,0.6); display: grid; gap: 8px; }
+.privacy-item { display: inline-flex; align-items: center; gap: 6px; }
+
+.login-hint { margin-top: 12px; color: rgba(255,255,255,0.75); font-size: 13px; text-align: center; }
+.login-error { margin-top: 10px; color: #fecaca; font-size: 14px; text-align: center; }
+
+/* Legal links inside card bottom */
+.login-legal { margin-top: 14px; text-align: center; font-size: 12px; color: rgba(255,255,255,0.6); }
+.login-legal a { color: inherit; text-decoration: underline; transition: color .12s ease; }
+.login-legal a:hover { color: #ffffff; }
+
+@keyframes card-in { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (prefers-color-scheme: light) {
+  .login-card { background: rgba(255,255,255,0.75); border-color: rgba(0,0,0,0.08); }
+  .login-desc { color: rgba(17,24,39,0.72); }
+  .login-privacy { color: rgba(17,24,39,0.6); }
+  .login-hint { color: rgba(17,24,39,0.72); }
+  .login-error { color: #b91c1c; }
+  .login-legal { color: rgba(17,24,39,0.6); }
+  .login-legal a:hover { color: #111827; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:hover { transform: none !important; }
+  .login-card { animation: none; }
+  .spinner { animation: none; }
+}
