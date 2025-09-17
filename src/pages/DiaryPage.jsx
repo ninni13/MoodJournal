@@ -220,7 +220,10 @@ export default function DiaryPage() {
   // Settings moved to SettingsPage
   const [tab, setTab] = useState('line') // 'line' | 'heat'
   const [range, setRange] = useState('week') // 'week' | 'month'
-  const [selectedDay, setSelectedDay] = useState(null) // 'YYYY-MM-DD'\n  const [speechEmotion, setSpeechEmotion] = useState(null)\n  const [speechBusy, setSpeechBusy] = useState(false)\n  const [speechResetKey, setSpeechResetKey] = useState(0)
+  const [selectedDay, setSelectedDay] = useState(null) // 'YYYY-MM-DD'
+  const [speechEmotion, setSpeechEmotion] = useState(null)
+  const [speechBusy, setSpeechBusy] = useState(false)
+  const [speechResetKey, setSpeechResetKey] = useState(0)
 
   const baseCol = useMemo(() => {
     if (!currentUser) return null
