@@ -246,7 +246,7 @@ export default function DiaryPage() {
         const wrongUidCol = collection(db, 'users', 'uid', 'diaries')
         const q3 = query(wrongUidCol, orderBy('date', 'desc'))
         const snap3 = await getDocs(q3)
-        wrongUidOnes = snap3.docs.map(d => ({ id: d.id, ...d.data(), __wrongUid: true }))}
+        wrongUidOnes = snap3.docs.map(d => ({ id: d.id, ...d.data(), __wrongUid: true }))
       } catch (err) {
         console.warn('[migrate] skip users/uid/diaries due to permission:', err?.code || err?.message)
       }
