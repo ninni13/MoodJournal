@@ -429,7 +429,7 @@ export default function DiaryPage() {
     const text = content.trim()
     if (!text || !baseCol) return
     try {
-      const id = uuid()\r
+      const id = uuid()
       let s = speechEmotion
       if (!s) {
         s = await analyzeSentimentViaApi(text)
