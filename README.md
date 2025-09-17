@@ -1,132 +1,122 @@
-﻿# Mood Journalï½œæƒ…ç·’æ—¥è¨˜ Web MVP
+﻿# Mood Journal｜情緒日記 Web MVP
 
-ä»¥ React + Vite æ‰“é€ çš„æ¥µç°¡æƒ…ç·’æ—¥è¨˜ï¼Œä½œç‚ºã€Œ30 å¤© Vibe Codingã€ç³»åˆ—çš„ç¬¬äºŒç¯‡ç« ã€‚å·²æŽ¥å…¥ Firebaseï¼šæ”¯æ´ Google ç™»å…¥èˆ‡ Firestore é›²ç«¯å„²å­˜ï¼ˆè·¯å¾‘ `users/{uid}/diaries/{docId}`ï¼‰ã€‚
+以 React + Vite 打造的極簡情緒日記，作為「30 天 Vibe Coding」系列的第二篇章。已接入 Firebase：支援 Google 登入與 Firestore 雲端儲存（路徑 `users/{uid}/diaries/{docId}`）。
 
-## åŠŸèƒ½ç‰¹è‰²
+## 功能特色
 
-### ç•¶å‰ï¼ˆDay 13 ç‰ˆï¼‰
+### 當前（Day 13 版）
 
-- Google ç™»å…¥ï¼šLoginPage æä¾› Google ç™»å…¥æŒ‰éˆ•
-- ä¿è­·è·¯ç”±ï¼šæœªç™»å…¥å°Žå‘ `/login`ï¼Œç™»å…¥å¾Œé€²å…¥ `/`
-- é›²ç«¯å„²å­˜ï¼šä½¿ç”¨è€…æ—¥è¨˜å­˜æ–¼ Firestore `users/{uid}/diaries/{docId}`
-- æ–°å¢ž/ç·¨è¼¯/åˆªé™¤ï¼šDiaryPage å¯æ–°å¢žã€ç·¨è¼¯ã€åˆªé™¤ï¼ˆè»Ÿåˆªé™¤ `isDeleted=true`ï¼‰
-- æŽ’åºï¼šæ¸…å–®ä¾æ—¥æœŸæ–° â†’ èˆŠæŽ’åº
-- åŸºæœ¬é˜²å‘†ï¼šå…§å®¹ç©ºç™½ç„¡æ³•å­˜æª”ï¼›å­˜æª”å¾Œè‡ªå‹•æ¸…ç©ºè¼¸å…¥æ¡†
+- Google 登入：LoginPage 提供 Google 登入按鈕
+- 保護路由：未登入導向 `/login`，登入後進入 `/`
+- 雲端儲存：使用者日記存於 Firestore `users/{uid}/diaries/{docId}`
+- 新增/編輯/刪除：DiaryPage 可新增、編輯、刪除（軟刪除 `isDeleted=true`）
+- 排序：清單依日期新 → 舊排序
+- 基本防呆：內容空白無法存檔；存檔後自動清空輸入框
 
-### é‡Œç¨‹ç¢‘ï¼ˆDay 12â€“29ï¼‰
+### 里程碑（Day 12–29）
 
-- Day 11ï¼šæ—¥è¨˜mvp
-- Day 12ï¼šFirestore ä¸²æŽ¥ + å¸³è™Ÿç™»å…¥ï¼ˆåƒ…æœ¬äººå¯è¦‹ï¼‰
-- Day 13ï¼šCRUDï¼ˆç·¨è¼¯ã€åˆªé™¤ã€æŽ’åºï¼‰
-- Day 14ï¼šåŸºç¤Žæ–‡å­—æƒ…ç·’åˆ†æžï¼ˆæ­£å‘/ä¸­ç«‹/è² å‘ï¼‰
-- Day 15ï¼šæƒ…ç·’è¦–è¦ºåŒ–ï¼ˆæŠ˜ç·šåœ– + æœˆæ›†ç†±åŠ›åœ–ï¼‰
-- Day 16ï¼šæ¨™ç±¤èˆ‡æœå°‹ï¼ˆtag / æ—¥æœŸç¯©é¸ï¼‰
-- Day 17ï¼šæé†’èˆ‡é€šçŸ¥ï¼ˆæ¯æ—¥æé†’å¯«æ—¥è¨˜ï¼‰
-- Day 18ï¼šéš±ç§èˆ‡å®‰å…¨ï¼ˆFirestore Rulesã€æœ¬åœ°åŠ å¯†é¸é …ï¼‰
-- Day 19ï¼šåŒ¯å‡ºï¼åŒ¯å…¥ï¼ˆJSON/CSVï¼‰
-- Day 20ï¼šPWA é›¢ç·šæ¨¡å¼ï¼ˆé›¢ç·šå¯å¯«ï¼Œä¸Šç·šè‡ªå‹•åŒæ­¥ï¼‰
-- Day 21ï¼šæ¸¬è©¦ã€éƒ¨ç½²èˆ‡äº‹ä»¶è¿½è¹¤ï¼ˆPlaywrightã€Vercelã€GA4/PostHogï¼‰
-- Day 22â€“23ï¼šé€²éšŽæ–‡å­—æƒ…ç·’åˆ†é¡žå™¨ï¼‹å¯è§£é‡‹æ€§ï¼ˆHuggingFaceã€ä¿¡å¿ƒåˆ†æ•¸ã€é—œéµè©žè²¢ç»ï¼‰
-- Day 24ï¼šå°‡é€²éšŽåˆ†é¡žå™¨æ•´åˆå›žæ—¥è¨˜ï¼ˆæ›´æº–ç¢ºçš„æ¨™ç±¤èˆ‡ä¿¡å¿ƒï¼‰
-- Day 25ï¼šèªžéŸ³è¼¸å…¥ï¼ˆéŒ„éŸ³ â†’ è½‰æ–‡å­—ï¼‰
-- Day 26ï¼šèªžéŸ³æƒ…ç·’æ¨¡åž‹æŒ‘é¸ï¼ˆdataset èˆ‡ baselineï¼‰
-- Day 27ï¼šèªžéŸ³ API ä¸²æŽ¥èˆ‡ Demoï¼ˆæ©ŸçŽ‡åˆ†å¸ƒé¡¯ç¤ºï¼‰
-- Day 28ï¼šæ•ˆæžœé©—è­‰ï¼ˆUAR â‰¥ 0.6ã€æ··æ·†çŸ©é™£ã€F1ï¼‰
-- Day 29ï¼šæ–‡å­— Ã— èªžéŸ³èžåˆï¼ˆLate Fusionï¼‰ï¼‹ éš±ç§é¸é …
+- Day 11：日記mvp
+- Day 12：Firestore 串接 + 帳號登入（僅本人可見）
+- Day 13：CRUD（編輯、刪除、排序）
+- Day 14：基礎文字情緒分析（正向/中立/負向）
+- Day 15：情緒視覺化（折線圖 + 月曆熱力圖）
+- Day 16：標籤與搜尋（tag / 日期篩選）
+- Day 17：提醒與通知（每日提醒寫日記）
+- Day 18：隱私與安全（Firestore Rules、本地加密選項）
+- Day 19：匯出／匯入（JSON/CSV）
+- Day 20：PWA 離線模式（離線可寫，上線自動同步）
+- Day 21：測試、部署與事件追蹤（Playwright、Vercel、GA4/PostHog）
+- Day 22–23：進階文字情緒分類器＋可解釋性（HuggingFace、信心分數、關鍵詞貢獻）
+- Day 24：將進階分類器整合回日記（更準確的標籤與信心）
+- Day 25：語音輸入（錄音 → 轉文字）
+- Day 26：語音情緒模型挑選（dataset 與 baseline）
+- Day 27：語音 API 串接與 Demo（機率分布顯示）
+- Day 28：效果驗證（UAR ≥ 0.6、混淆矩陣、F1）
+- Day 29：文字 × 語音融合（Late Fusion）＋ 隱私選項
 
-## æŠ€è¡“æž¶æ§‹
+## 技術架構
 
-- æ¡†æž¶ï¼šReact 19
-- å»ºç½®å·¥å…·ï¼šVite 7
-- èªžè¨€ï¼šJavaScriptï¼ˆå¯é€æ­¥å°Žå…¥ TypeScriptï¼‰
-- ç‹€æ…‹ç®¡ç†ï¼šReact Hooksï¼ˆ`useState`ã€`useEffect`ã€`useMemo`ï¼‰
-- è·¯ç”±ï¼šReact Router v6
-- èº«åˆ†é©—è­‰ï¼šFirebase Authï¼ˆGoogleï¼‰
-- è³‡æ–™åº«ï¼šCloud Firestoreï¼ˆ`users/{uid}/diaries/{docId}`ï¼‰
+- 框架：React 19
+- 建置工具：Vite 7
+- 語言：JavaScript（可逐步導入 TypeScript）
+- 狀態管理：React Hooks（`useState`、`useEffect`、`useMemo`）
+- 路由：React Router v6
+- 身分驗證：Firebase Auth（Google）
+- 資料庫：Cloud Firestore（`users/{uid}/diaries/{docId}`）
 
-## å®‰å…¨èˆ‡éš±ç§
+## 安全與隱私
 
-- Firestore è¦å‰‡ï¼šå¸³è™Ÿéš”é›¢ï¼ˆè¦‹ `firestore.rules`ï¼‰
-  - åªå…è¨±æœ¬äººè®€å¯«è‡ªå·±çš„è³‡æ–™ï¼š
-    - `users/{uid}/diaries/{docId}`ï¼ˆæ—¥è¨˜ï¼‰
-    - `users/{uid}/profile/{docId}`ï¼ˆæé†’è¨­å®šï¼‰
-  - è¦å‰‡éƒ¨ç½²ï¼š
-    - Consoleï¼šFirestore â†’ Rules â†’ è²¼ä¸Šå¾Œ Publish
-    - æˆ– CLIï¼š`firebase deploy --only firestore:rules`
-- æœ¬åœ°åŠ å¯†ï¼ˆå‰ç«¯ï¼‰ï¼š
-  - å¯«å…¥æ™‚ç”¨ AES åŠ å¯†å…§å®¹ï¼ŒFirestore å„²å­˜å¯†æ–‡æ¬„ä½ `contentEnc`
-  - è®€å–æ™‚åœ¨å‰ç«¯è§£å¯†å¾Œé¡¯ç¤ºæ˜Žæ–‡ï¼ˆç›¸å®¹èˆŠè³‡æ–™ï¼‰
+- Firestore 規則：帳號隔離（見 `firestore.rules`）
+  - 只允許本人讀寫自己的資料：
+    - `users/{uid}/diaries/{docId}`（日記）
+    - `users/{uid}/profile/{docId}`（提醒設定）
+  - 規則部署：
+    - Console：Firestore → Rules → 貼上後 Publish
+    - 或 CLI：`firebase deploy --only firestore:rules`
+- 本地加密（前端）：
+  - 寫入時用 AES 加密內容，Firestore 儲存密文欄位 `contentEnc`
+  - 讀取時在前端解密後顯示明文（相容舊資料）
 
-## å¿«é€Ÿé–‹å§‹
+## 快速開始
 
-ç’°å¢ƒéœ€æ±‚ï¼šNode.js 18+ã€npm
+環境需求：Node.js 18+、npm
 
 ```bash
-# å®‰è£ä¾è³´
+# 安裝依賴
 npm install
 
-# é–‹ç™¼æ¨¡å¼
+# 開發模式
 npm run dev
 
-# å»ºç½®ç”¢ç‰©
+# 建置產物
 npm run build
 
-# æœ¬åœ°é è¦½ï¼ˆé è¨­ http://localhost:5173ï¼‰
+# 本地預覽（預設 http://localhost:5173）
 npm run preview
 ```
 
-### Firebase è¨­å®š
+### Firebase 設定
 
-1) åœ¨ Firebase Console å»ºç«‹å°ˆæ¡ˆèˆ‡ Web Appï¼Œå•Ÿç”¨ Authenticationï¼ˆGoogleï¼‰èˆ‡ Firestoreã€‚
+1) 在 Firebase Console 建立專案與 Web App，啟用 Authentication（Google）與 Firestore。
 
-2) å»ºç«‹ `.env.local`ï¼Œå¡«å…¥å°ˆæ¡ˆè¨­å®šï¼ˆVite ä½¿ç”¨ `VITE_` å‰ç¶´ï¼‰ï¼š
+2) 建立 `.env.local`，填入專案設定（Vite 使用 `VITE_` 前綴）：
 
 ```
 VITE_FIREBASE_API_KEY=xxx
-VITE_FIREBASE_AUTH_DOMAIN=xxx.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=xxx
-VITE_FIREBASE_APP_ID=1:xxxx:web:xxxx
-VITE_FIREBASE_STORAGE_BUCKET=xxx.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=xxxx
-
-# Optional inference endpoints
-VITE_INFER_URL=https://your-text-infer-endpoint
-VITE_SPEECH_INFER_URL=https://your-speech-infer-endpoint
-# Only set if the speech API expects X-API-Key
+@@ -96,36 +96,34 @@ VITE_SPEECH_INFER_URL=https://your-speech-infer-endpoint
 VITE_SPEECH_API_KEY=your-secret-key
 ```
 
-3) é‡æ–°å•Ÿå‹• dev server å¾Œå³å¯ç™»å…¥ã€å¯«å…¥èˆ‡è®€å–æ—¥è¨˜ã€‚
+3) 重新啟動 dev server 後即可登入、寫入與讀取日記。
 
-## ä½¿ç”¨æ–¹å¼
+## 使用方式
 
-- åœ¨è¼¸å…¥æ¡†è¼¸å…¥æ—¥è¨˜å…§å®¹
-- é»žæ“Šã€Œå­˜æª”ã€å¾Œï¼Œä¸‹æ–¹æ¸…å–®æœƒå³æ™‚å‡ºç¾æ–°é …ç›®
-- æ¸…å–®é¡¯ç¤ºæ—¥æœŸèˆ‡å‰ 30 å­—æ‘˜è¦ï¼Œä¾æ—¥æœŸæ–° â†’ èˆŠæŽ’åº
-- å¯é‡æ•´æˆ–é—œé–‰é é¢ï¼Œè³‡æ–™ä»ä¿ç•™æ–¼æœ¬æ©Ÿï¼ˆ`localStorage`ï¼‰
+- 在輸入框輸入日記內容
+- 點擊「存檔」後，下方清單會即時出現新項目
+- 清單顯示日期與前 30 字摘要，依日期新 → 舊排序
+- 可重整或關閉頁面，資料仍保留於本機（`localStorage`）
 
-è·¯ç”±ï¼š
-- `/login`ï¼šç™»å…¥é ï¼ˆGoogle ç™»å…¥ï¼‰
-- `/`ï¼šæ—¥è¨˜é ï¼ˆæ–°å¢žã€ç·¨è¼¯ã€åˆªé™¤ï¼›æŽ’åºï¼‰
-- `/trash`ï¼šåžƒåœ¾æ¡¶ï¼ˆåƒ…é¡¯ç¤º `isDeleted=true`ï¼Œæ”¯æ´é‚„åŽŸ/æ°¸ä¹…åˆªé™¤ï¼‰
+路由：
+- `/login`：登入頁（Google 登入）
+- `/`：日記頁（新增、編輯、刪除；排序）
+- `/trash`：垃圾桶（僅顯示 `isDeleted=true`，支援還原/永久刪除）
+- `/sentiment-test` - text sentiment inference demo page
+- `/speech-test` - speech emotion inference demo page
 
-## å°ˆæ¡ˆçµæ§‹ï¼ˆé‡é»žï¼‰
+## 專案結構（重點）
 
-- `src/App.jsx`ï¼šè·¯ç”±è¨­å®šï¼ˆå«ä¿è­·è·¯ç”±ï¼‰
-- `src/pages/LoginPage.jsx`ï¼šç™»å…¥é 
-- `src/pages/DiaryPage.jsx`ï¼šæ—¥è¨˜é ï¼ˆFirestore CRUDï¼šæ–°å¢žã€ç·¨è¼¯ã€è»Ÿåˆªé™¤ã€æŽ’åºï¼‰
-- `src/pages/TrashPage.jsx`ï¼šåžƒåœ¾æ¡¶é ï¼ˆé‚„åŽŸï¼æ°¸ä¹…åˆªé™¤ï¼‰
-- `src/state/AuthContext.jsx`ï¼šä½¿ç”¨è€…ç‹€æ…‹ï¼ˆFirebase Authï¼‰
-- `src/lib/firebase.js`ï¼šFirebase åˆå§‹åŒ–ï¼ˆAuthã€Firestoreï¼‰
-- `src/App.css`ã€`src/index.css`ï¼šæ¨£å¼
-- `index.html`ï¼šé é¢å…¥å£
-- `vite.config.js`ï¼šVite è¨­å®š
-- `package.json`ï¼šè…³æœ¬èˆ‡ç›¸ä¾å¥—ä»¶
+- `src/App.jsx`：路由設定（含保護路由）
+- `src/pages/LoginPage.jsx`：登入頁
+- `src/pages/DiaryPage.jsx`：日記頁（Firestore CRUD：新增、編輯、軟刪除、排序）
+- `src/pages/TrashPage.jsx`：垃圾桶頁（還原／永久刪除）
+- `src/state/AuthContext.jsx`：使用者狀態（Firebase Auth）
+- `src/lib/firebase.js`：Firebase 初始化（Auth、Firestore）
+- `src/App.css`、`src/index.css`：樣式
+- `index.html`：頁面入口
+- `vite.config.js`：Vite 設定
+- `package.json`：腳本與相依套件
 
-### ä¸»è¦ä½¿ç”¨çš„ Firebase API
+### 主要使用的 Firebase API
 
 ```js
 import { initializeApp } from 'firebase/app'
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth'
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore'
-```

@@ -31,13 +31,13 @@ function formatDisplayDate(dateStr) {
   return norm
 }
 
-// Mock sentiment analyzer â€” replace with real API later
+// 簡易本地情緒分析（可替換為真實 API）
 function analyzeSentiment(text) {
   const s = String(text || '')
 
-  // é—œéµè©žå­—å…¸ï¼ˆå¯å†æ“´å……ï¼‰
-  const positiveWords = ['é–‹å¿ƒ', 'å¿«æ¨‚', 'èˆˆå¥®', 'å¹¸ç¦', 'è®š', 'çˆ½', 'å¥½åƒ', 'å¥½çŽ©', 'æ„›']
-  const negativeWords = ['ç´¯', 'é›£éŽ', 'ç”Ÿæ°£', 'ç…©', 'è¨ŽåŽ­', 'å£“åŠ›', 'ç—›è‹¦', 'å¤±æœ›', 'ä¸å–œæ­¡']
+  // 關鍵詞字典（可再擴充）
+  const positiveWords = ['開心', '快樂', '愉悅', '幸福', '讚', '爽', '好吃', '好玩', '愛']
+  const negativeWords = ['累', '難過', '生氣', '煩', '壓力', '痛苦', '失望', '不喜歡']
 
   let posHits = 0
   let negHits = 0
@@ -49,10 +49,10 @@ function analyzeSentiment(text) {
   if (raw > 0) label = 'positive'
   else if (raw < 0) label = 'negative'
 
-  // åˆ†æ•¸è¦å‰‡ï¼š
-  // - æ­£å‘ï¼š>= 0.7ï¼ˆèµ·å§‹ 0.8ï¼‰
-  // - ä¸­ç«‹ï¼š= 0.5
-  // - è² å‘ï¼š<= 0.3ï¼ˆèµ·å§‹ 0.2ï¼‰
+  // 分數規則：
+  // - 正向：>= 0.7（起始 0.8）
+  // - 中立：= 0.5
+  // - 負向：<= 0.3（起始 0.2）
   let score
   if (label === 'positive') {
     score = Math.min(1, 0.8 + Math.max(0, posHits - 1) * 0.05)
@@ -65,23 +65,22 @@ function analyzeSentiment(text) {
   return { label, score }
 }
 
-
 function sentimentView(sentiment) {
   const label = sentiment?.label || 'neutral'
   const confidence = typeof sentiment?.confidence === 'number' ? sentiment.confidence : undefined
   const topTokens = Array.isArray(sentiment?.topTokens) ? sentiment.topTokens : []
   const map = {
-    positive: { emoji: 'ðŸ˜Š', text: 'æ­£å‘', cls: 'chip-positive' },
-    neutral: { emoji: 'ðŸ˜', text: 'ä¸­ç«‹', cls: 'chip-neutral' },
-    negative: { emoji: 'â˜¹ï¸', text: 'è² å‘', cls: 'chip-negative' },
+    positive: { emoji: '😊', text: '正向', cls: 'chip-positive' },
+    neutral:  { emoji: '😐', text: '中立', cls: 'chip-neutral' },
+    negative: { emoji: '☹️', text: '負向', cls: 'chip-negative' },
   }
   const m = map[label] || map.neutral
 
-  // æ¨™é¡ŒåŒ…å«ä¿¡å¿ƒ
+  // 標題包含信心
   let title = label
-  if (confidence !== undefined) title += ` (ä¿¡å¿ƒ: ${(confidence * 100).toFixed(1)}%)`
+  if (confidence !== undefined) title += ` (信心: ${(confidence * 100).toFixed(1)}%)`
 
-  // ä¿¡å¿ƒå°æ‡‰é£½å’Œåº¦ï¼ˆ0.3~1.0ï¼‰ï¼Œé¿å…éŽæ·¡
+  // 信心對應飽和度（0.3~1.0），避免過淡
   const confForCss = confidence !== undefined ? Math.max(0.3, Math.min(1, confidence)).toFixed(2) : undefined
 
   const showKw = label === 'positive' || label === 'negative'
@@ -105,13 +104,13 @@ function sentimentView(sentiment) {
 
       {showKw && topTokens.length > 0 && (
         <div className="kw-popover">
-          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>é—œéµè©ž</div>
+          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>關鍵詞</div>
           <span className="kw-tags">
             {topTokens.slice(0, 8).map((t, i) => {
               const tagCls = t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')
-              const pct = typeof t.contrib === 'number' ? (t.contrib * 100).toFixed(1) : 'â€“'
+              const pct = typeof t.contrib === 'number' ? (t.contrib * 100).toFixed(1) : '–'
               return (
-                <span key={i} className={`kw-tag ${tagCls}`} title={`è²¢ç»åº¦ ${pct}%`}>
+                <span key={i} className={`kw-tag ${tagCls}`} title={`貢獻度 ${pct}%`}>
                   {t.text}
                 </span>
               )
@@ -124,10 +123,10 @@ function sentimentView(sentiment) {
 }
 
 function scoreLabel(score) {
-  if (score == null) return { emoji: 'â€“', text: 'ç„¡è³‡æ–™', color: '#9ca3af' }
-  if (score < 0.3) return { emoji: 'â˜¹ï¸', text: 'è² å‘', color: '#ef4444' }
-  if (score > 0.7) return { emoji: 'ðŸ˜Š', text: 'æ­£å‘', color: '#10b981' }
-  return { emoji: 'ðŸ˜', text: 'ä¸­ç«‹', color: '#6b7280' }
+  if (score == null) return { emoji: '–', text: '無資料', color: '#9ca3af' }
+  if (score < 0.3) return { emoji: '☹️', text: '負向', color: '#ef4444' }
+  if (score > 0.7) return { emoji: '😊', text: '正向', color: '#10b981' }
+  return { emoji: '😐', text: '中立', color: '#6b7280' }
 }
 
 function uuid() {
@@ -139,7 +138,7 @@ function uuid() {
   })
 }
 
-// Simple AES helpers (key uses current user's uid for now)
+// 簡易 AES：以目前使用者 uid 當 key（僅示範；正式環境建議另行管理）
 function encryptText(plain, key) {
   try {
     return CryptoJS.AES.encrypt(String(plain), String(key)).toString()
@@ -157,35 +156,25 @@ function decryptText(cipher, key) {
   }
 }
 
-// Use remote API if available; map to { label, score, confidence, topTokens }
+// 走遠端 API；回傳 { label, score, confidence, topTokens }
 async function analyzeSentimentViaApi(text) {
   try {
     const r = await inferSentiment(text)
-    
-    // æª¢æŸ¥ API éŸ¿æ‡‰æ˜¯å¦æˆåŠŸ
     if (!r.ok) {
       throw new Error('API response not ok')
     }
-    
-    // æ˜ å°„æ–°çš„æ¨™ç±¤æ ¼å¼
-    const labelMap = {
-      'pos': 'positive',
-      'neu': 'neutral', 
-      'neg': 'negative'
-    }
-    
+    const labelMap = { pos: 'positive', neu: 'neutral', neg: 'negative' }
     const mappedLabel = labelMap[r.label] || 'neutral'
-    
-    // è¨ˆç®—åˆ†æ•¸ï¼šä½¿ç”¨æ¦‚çŽ‡åˆ†å¸ƒ
+
     let score = 0.5
     if (r.probs && typeof r.probs === 'object') {
       const { neg, neu, pos } = r.probs
-      // å°‡æ¦‚çŽ‡è½‰æ›ç‚º 0-1 åˆ†æ•¸ï¼šè² å‘=0, ä¸­ç«‹=0.5, æ­£å‘=1
+      // 以機率轉換為 0-1 分數：負向=0、中立=0.5、正向=1
       score = pos + (neu * 0.5)
     }
-    
-    return { 
-      label: mappedLabel, 
+
+    return {
+      label: mappedLabel,
       score,
       confidence: r.confidence,
       topTokens: r.top_tokens || [],
@@ -209,18 +198,18 @@ export default function DiaryPage() {
   const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false)
   const [syncStatus, setSyncStatus] = useState('')
   const [pendingCount, setPendingCount] = useState(0)
-  // Search & date filters
+  // 搜尋與日期篩選
   const [searchQuery, setSearchQuery] = useState('')
   const today = new Date()
-  // é è¨­æ”¹ç‚ºã€Œå…¨éƒ¨ã€ï¼Œé¿å…èˆŠè³‡æ–™è¢«æœ¬æœˆç¯©æŽ‰
+  // 預設為「全部」，避免本月以外資料被隱藏
   const [quickPreset, setQuickPreset] = useState('all') // 'all' | 'thisMonth' | 'lastMonth' | 'custom'
   const [startDate, setStartDate] = useState(null)
   const [endDate, setEndDate] = useState(null)
-  // Reminder settings
-  // Settings moved to SettingsPage
-  const [tab, setTab] = useState('line') // 'line' | 'heat'
+  // 圖表
+  const [tab, setTab] = useState('line')   // 'line' | 'heat'
   const [range, setRange] = useState('week') // 'week' | 'month'
   const [selectedDay, setSelectedDay] = useState(null) // 'YYYY-MM-DD'
+  // 語音情緒
   const [speechEmotion, setSpeechEmotion] = useState(null)
   const [speechBusy, setSpeechBusy] = useState(false)
   const [speechResetKey, setSpeechResetKey] = useState(0)
@@ -235,12 +224,12 @@ export default function DiaryPage() {
     setLoading(true)
     setError('')
     try {
-      // Avoid composite index for now: order only, filter client-side
+      // 以日期排序；篩選在客端做
       const q1 = query(baseCol, orderBy('date', 'desc'))
       const snap1 = await getDocs(q1)
       const diaries = snap1.docs.map(d => ({ id: d.id, ...d.data() }))
 
-      // Backward compatibility: also check old collection name `diary`
+      // 向後相容：讀舊的 collection `diary`
       let oldOnes = []
       try {
         const oldCol = collection(db, 'users', currentUser.uid, 'diary')
@@ -248,25 +237,24 @@ export default function DiaryPage() {
         const snap2 = await getDocs(q2)
         oldOnes = snap2.docs.map(d => ({ id: d.id, ...d.data(), __legacy: true }))
       } catch (err) {
-        // Likely due to Firestore rules not allowing the legacy path; skip silently
         console.warn('[migrate] skip legacy read due to permission:', err?.code || err?.message)
       }
 
-      // Handle mistakenly stored docs at users/uid/diaries/* (literal "uid")
+      // 誤存 users/uid/diaries（字串 "uid"）的位置
       let wrongUidOnes = []
       try {
         const wrongUidCol = collection(db, 'users', 'uid', 'diaries')
         const q3 = query(wrongUidCol, orderBy('date', 'desc'))
         const snap3 = await getDocs(q3)
-        wrongUidOnes = snap3.docs.map(d => ({ id: d.id, ...d.data(), __wrongUid: true }))
+        wrongUidOnes = snap3.docs.map(d => ({ id: d.id, ...d.data(), __wrongUid: true }))}
       } catch (err) {
         console.warn('[migrate] skip users/uid/diaries due to permission:', err?.code || err?.message)
       }
 
-      // Normalize and migrate legacy docs to new collection if missing
+      // 正規化與修補 sentiment 欄位
       const patchList = []
       const normalizedNew = diaries.map(e => {
-        // å…ˆå–å¾—å¯ç”¨æ˜Žæ–‡ï¼Œå†æ ¹æ“šæ˜Žæ–‡åˆ†æžæƒ…ç·’
+        // 先取可用明文，再依明文分析情緒
         let plain = null
         if (e.contentEnc) {
           plain = currentUser ? decryptText(e.contentEnc, currentUser.uid) : null
@@ -274,9 +262,7 @@ export default function DiaryPage() {
         if (!plain && typeof e.content === 'string') {
           plain = String(e.content)
         }
-        /* computed via local heuristic removed to avoid overwriting API */
         let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : analyzeSentiment(plain)
-        // è‹¥èˆŠè³‡æ–™åˆ†æ•¸èˆ‡æ–°è¦å‰‡å‡ºå…¥å¾ˆå¤§ï¼Œå‰‡ä»¥æ–°è¦å‰‡è¦†è“‹ä¸¦æŽ’å…¥ä¿®è£œ
         if (!e.sentiment || typeof e.sentiment !== 'object') {
           patchList.push({ id: e.id, sentiment })
         }
@@ -303,7 +289,7 @@ export default function DiaryPage() {
         }
         if (!newIds.has(norm.id)) {
           try {
-            // Write into new collection
+            // 寫入新的 collection
             const contentEnc = currentUser ? encryptText(norm.content, currentUser.uid) : null
             const { content, ...rest } = norm
             await setDoc(doc(baseCol, norm.id), { ...rest, contentEnc })
@@ -320,7 +306,7 @@ export default function DiaryPage() {
 
       setEntries(merged)
 
-      // èƒŒæ™¯ä¿®è£œï¼šæŠŠä¸ä¸€è‡´çš„ sentiment åˆ†æ•¸å¯«å›ž Firestore
+      // 背景修補：把不一致的 sentiment 分數寫回 Firestore
       if (patchList.length) {
         try {
           for (const p of patchList) {
@@ -332,7 +318,7 @@ export default function DiaryPage() {
       }
     } catch (e) {
       console.error(e)
-      setError(e?.message || 'è®€å–è³‡æ–™å¤±æ•—')
+      setError(e?.message || '取得資料失敗')
     } finally {
       setLoading(false)
     }
@@ -340,7 +326,7 @@ export default function DiaryPage() {
 
   useEffect(() => { refresh() }, [refresh])
 
-  // ç•¶é›¢ç·šæ™‚ï¼ŒæŠŠå°šæœªåŒæ­¥çš„æœ¬æ©Ÿç­†è¨˜ä¹Ÿå±•ç¤ºæ–¼åˆ—è¡¨ï¼ˆåŠ ä¸Šå¾…åŒæ­¥æ¨™è¨˜ï¼‰
+  // 離線時顯示 IndexedDB 待同步資料
   useEffect(() => {
     async function loadPendingIntoList() {
       if (!isOffline || !currentUser) return
@@ -365,18 +351,17 @@ export default function DiaryPage() {
     loadPendingIntoList()
   }, [isOffline, currentUser])
 
-  // Online/offline detection and sync
+  // 線上/離線偵測與自動同步
   useEffect(() => {
     function handleOffline() { setIsOffline(true) }
     async function handleOnline() {
       setIsOffline(false)
-      // è‹¥å°šæœªå®Œæˆç™»å…¥ï¼ˆcurrentUser å¯èƒ½é‚„æ²’å°±ç·’ï¼‰ï¼Œæ™šé»žé‡è©¦
       if (!currentUser) {
-        setSyncStatus('ç­‰å¾…ç™»å…¥å¾ŒåŒæ­¥â€¦')
+        setSyncStatus('等待登入後同步…')
         setTimeout(() => { if (navigator.onLine) handleOnline() }, 1500)
         return
       }
-      setSyncStatus('åŒæ­¥ä¸­â€¦')
+      setSyncStatus('同步中…')
       try {
         const pending = await getAllPending()
         setPendingCount(pending.length)
@@ -392,22 +377,20 @@ export default function DiaryPage() {
             await deletePending(e.id)
             ok++
           } catch (entryErr) {
-            // å–®ç­†å¤±æ•—æ™‚ä¿ç•™åœ¨ pendingï¼Œä¸‹æ¬¡å†è©¦
             console.warn('[sync] fail one entry', e.id, entryErr?.message)
             fail++
           }
         }
         if (fail > 0) {
-          setSyncStatus(`éƒ¨åˆ†å®Œæˆï¼ˆæˆåŠŸ ${ok} / å¤±æ•— ${fail}ï¼Œç¨å¾Œè‡ªå‹•é‡è©¦ï¼‰`)
+          setSyncStatus(`部分完成（成功 ${ok} / 失敗 ${fail}，稍後自動重試）`)
         } else {
-          setSyncStatus('åŒæ­¥å®Œæˆ')
+          setSyncStatus('同步完成')
         }
         setTimeout(() => setSyncStatus(''), 2000)
         refresh()
       } catch (err) {
-        console.error('[sync] åŒæ­¥å¤±æ•—', err)
-        setSyncStatus('åŒæ­¥å¤±æ•—ï¼Œç¨å¾Œè‡ªå‹•é‡è©¦')
-        // 5 ç§’å¾Œè‡ªå‹•å†å˜—è©¦ä¸€æ¬¡ï¼ˆè‹¥ä»é›¢ç·šæˆ–ç¶²è·¯ä¸ç©©ï¼‰
+        console.error('[sync] 同步失敗', err)
+        setSyncStatus('同步失敗，稍後自動重試')
         setTimeout(() => {
           if (navigator.onLine) {
             handleOnline()
@@ -423,8 +406,6 @@ export default function DiaryPage() {
       window.removeEventListener('online', handleOnline)
     }
   }, [currentUser, db, refresh])
-
-  // Settings moved to SettingsPage
 
   const canSave = useMemo(() => content.trim().length > 0 && !speechBusy, [content, speechBusy])
 
@@ -445,7 +426,7 @@ export default function DiaryPage() {
         sentiment: s,
       }
       if (isOffline) {
-        // Save to IndexedDB and reflect in UI
+        // 先存 IndexedDB 並反映在 UI
         await addPending({ ...newData, content: text, isSynced: false })
         setEntries(prev => [{ id, ...newData, content: text, localPending: true }, ...prev])
       } else {
@@ -459,19 +440,17 @@ export default function DiaryPage() {
       setSpeechResetKey(key => key + 1)
     } catch (e) {
       console.error(e)
-      setError(e?.message || 'å­˜æª”å¤±æ•—')
+      setError(e?.message || '存檔失敗')
     }
   }
 
   function summary(text, max = 30) {
     const s = String(text).replace(/\s+/g, ' ').trim()
     if (s.length <= max) return s
-    return s.slice(0, max) + 'â€¦'
+    return s.slice(0, max) + '…'
   }
 
-  // Settings moved to SettingsPage
-
-  // ===== Filters =====
+  // ===== 篩選器 =====
   function applyPreset(preset) {
     setQuickPreset(preset)
     const now = new Date()
@@ -486,7 +465,7 @@ export default function DiaryPage() {
       setStartDate(startOfMonth(lm))
       setEndDate(endOfMonth(lm))
     } else {
-      // custom: keep current start/end
+      // custom: 保持現有範圍
     }
   }
 
@@ -510,23 +489,23 @@ export default function DiaryPage() {
   function filterTitle() {
     const hasCustomRange = startDate && endDate && (startDate.getFullYear() !== endDate.getFullYear() || startDate.getMonth() !== endDate.getMonth())
     let base
-    if (!startDate && !endDate) base = 'å…¨éƒ¨æ­·å²ç´€éŒ„'
-    else if (hasCustomRange) base = `${format(startDate, 'yyyy/MM/dd')} - ${format(endDate, 'yyyy/MM/dd')} æ­·å²ç´€éŒ„`
-    else base = `${format((endDate || new Date()), 'yyyy/MM')} æ­·å²ç´€éŒ„`
+    if (!startDate && !endDate) base = '全部歷史紀錄'
+    else if (hasCustomRange) base = `${format(startDate, 'yyyy/MM/dd')} - ${format(endDate, 'yyyy/MM/dd')} 歷史紀錄`
+    else base = `${format((endDate || new Date()), 'yyyy/MM')} 歷史紀錄`
     const q = searchQuery.trim()
-    return q ? `${base}ï¼ˆå«ã€Ž${q}ã€ï¼‰` : base
+    return q ? `${base}（含「${q}」）` : base
   }
 
   const hasActiveFilter = useMemo(() => {
     return searchQuery.trim() !== '' || quickPreset !== 'all'
   }, [searchQuery, quickPreset])
 
-  // ===== Insights data derived from entries =====
+  // ===== Insights: 折線圖資料 =====
   const lineData = useMemo(() => {
     const now = new Date()
     const days = range === 'week' ? 7 : 30
 
-    // Anchor the range to the latest diary date to ensure newly edited future dates show up
+    // 以最新日記日期當尾端，確保未來日期（手動編輯）也能出現
     let latest = new Date(0)
     for (const it of sortedFiltered) {
       const d = parseISO(it.date)
@@ -539,8 +518,8 @@ export default function DiaryPage() {
     const byKey = new Map()
     for (const it of sortedFiltered) {
       const d = parseISO(it.date)
-      if (isAfter(start, d)) continue // skip before range
-      if (d > end) continue // skip after range
+      if (isAfter(start, d)) continue
+      if (d > end) continue
       const k = it.date
       if (!byKey.has(k)) byKey.set(k, [])
       const val = Number(it?.sentiment?.score ?? 0.5)
@@ -555,8 +534,8 @@ export default function DiaryPage() {
     })
   }, [entries, range])
 
+  // ===== Insights: 月曆熱力圖資料 =====
   const monthHeat = useMemo(() => {
-    // Heatmap follows the month of endDate if provided, else current month
     const base = endDate || new Date()
     const start = startOfMonth(base)
     const end = endOfMonth(base)
@@ -582,8 +561,6 @@ export default function DiaryPage() {
     return sortedFiltered.filter(i => i.date === selectedDay)
   }, [sortedFiltered, selectedDay])
 
-  // åˆªé™¤åŠŸèƒ½æš«æ™‚ç§»é™¤ï¼ˆDay 13 æœƒè£œä¸Šï¼‰
-
   async function startEdit(id, current) {
     setEditingId(id)
     setEditingText(current)
@@ -606,38 +583,38 @@ export default function DiaryPage() {
       setEditingText('')
     } catch (e) {
       console.error(e)
-      setError(e?.message || 'æ›´æ–°å¤±æ•—')
+      setError(e?.message || '更新失敗')
     }
   }
 
   async function softDelete(id) {
     if (!id || !currentUser || !baseCol) return
-    const ok = window.confirm('ç¢ºå®šè¦åˆªé™¤é€™ç¯‡æ—¥è¨˜å—Žï¼Ÿï¼ˆå¯æ–¼åžƒåœ¾æ¡¶é‚„åŽŸï¼‰')
+    const ok = window.confirm('確定要刪除這篇日記嗎？（可於垃圾桶還原）')
     if (!ok) return
     try {
       await updateDoc(doc(baseCol, id), { isDeleted: true, updatedAt: new Date().toISOString() })
       setEntries(prev => prev.filter(e => e.id !== id))
     } catch (e) {
       console.error(e)
-      setError(e?.message || 'åˆªé™¤å¤±æ•—')
+      setError(e?.message || '刪除失敗')
     }
   }
 
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="title" style={{ marginBottom: 0 }}>éœ“çš„æƒ…ç·’æ—¥è¨˜</h1>
+        <h1 className="title" style={{ marginBottom: 0 }}>我的情緒日記</h1>
         <div>
-          <Link to="/settings" style={{ marginRight: '0.75rem', fontSize: 14 }}>è¨­å®š</Link>
-          <Link to="/trash" style={{ marginRight: '0.75rem', fontSize: 14 }}>åžƒåœ¾æ¡¶</Link>
+          <Link to="/settings" style={{ marginRight: '0.75rem', fontSize: 14 }}>設定</Link>
+          <Link to="/trash" style={{ marginRight: '0.75rem', fontSize: 14 }}>垃圾桶</Link>
           <span style={{ marginRight: '0.75rem', color: '#666', fontSize: 14 }}>{currentUser?.displayName}</span>
-          <button className="btn btn-outline" onClick={logout}>ç™»å‡º</button>
+          <button className="btn btn-outline" onClick={logout}>登出</button>
         </div>
       </div>
 
       {isOffline && (
         <div className="toast toast-error" style={{ position: 'static', marginTop: 8 }}>
-          ç›®å‰ç‚ºé›¢ç·šæ¨¡å¼ï¼Œç­†è¨˜æœƒå…ˆå„²å­˜åœ¨æœ¬æ©Ÿä¸¦æ–¼æ¢å¾©ç¶²è·¯å¾Œè‡ªå‹•åŒæ­¥ã€‚
+          目前為離線模式，日記會先儲存在本機並於恢復網路後自動同步。
         </div>
       )}
       {!!syncStatus && !isOffline && (
@@ -646,29 +623,27 @@ export default function DiaryPage() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* 篩選列 */}
       <div className="filters">
         <div className="filters-row">
           <div className="filter-actions">
-            <button className={`btn ${quickPreset === 'all' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('all')}>å…¨éƒ¨</button>
-            <button className={`btn ${quickPreset === 'thisMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('thisMonth')}>æœ¬æœˆ</button>
-            <button className={`btn ${quickPreset === 'lastMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('lastMonth')}>ä¸Šæœˆ</button>
-            <button className={`btn ${quickPreset === 'custom' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('custom')}>è‡ªè¨‚</button>
-
-            {/* custom date range moved below to keep search aligned */}
+            <button className={`btn ${quickPreset === 'all' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('all')}>全部</button>
+            <button className={`btn ${quickPreset === 'thisMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('thisMonth')}>本月</button>
+            <button className={`btn ${quickPreset === 'lastMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('lastMonth')}>上月</button>
+            <button className={`btn ${quickPreset === 'custom' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('custom')}>自訂</button>
           </div>
 
           <input
             className="input search-inline"
             type="text"
-            placeholder="æœå°‹å…§æ–‡ï¼Œä¾‹å¦‚ï¼šè€ƒè©¦ã€æ—…è¡Œã€emo"
+            placeholder="搜尋內文（例如：考試、旅行、emo）"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
 
-      {/* Custom date range row - placed under the filter/search row to keep search aligned */}
+      {/* 自訂日期區間 */}
       {quickPreset === 'custom' && (
         <div className="filters-row" style={{ marginTop: 8 }}>
           <div className="filter-actions" style={{ gap: 8 }}>
@@ -679,7 +654,7 @@ export default function DiaryPage() {
               value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
               onChange={(e) => setStartDate(e.target.value ? parseISO(e.target.value) : null)}
             />
-            <span style={{ color: '#888' }}>åˆ°</span>
+            <span style={{ color: '#888' }}>到</span>
             <input
               className="input"
               style={{ maxWidth: 170 }}
@@ -691,14 +666,12 @@ export default function DiaryPage() {
         </div>
       )}
 
-      {/* Reminder settings moved to /settings */}
-
       <div className="editor">
-        <label htmlFor="content" className="label">æ—¥è¨˜å…§å®¹</label>
+        <label htmlFor="content" className="label">日記內容</label>
         <textarea
           id="content"
           className="textarea"
-          placeholder="è¼¸å…¥ä»Šå¤©çš„å¿ƒæƒ…..."
+          placeholder="輸入今天的心情..."
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={6}
@@ -734,11 +707,11 @@ export default function DiaryPage() {
       </div>
 
       <div className="list">
-        <h2 className="subtitle">{hasActiveFilter ? `${filterTitle()}ï¼ˆç¯©é¸å¾Œå…± ${sortedFiltered.length} ç¯‡ï¼‰` : 'æ‰€æœ‰æ—¥è¨˜'}</h2>
+        <h2 className="subtitle">{hasActiveFilter ? `${filterTitle()}（篩選後共 ${sortedFiltered.length} 則）` : '所有日記'}</h2>
         {loading ? (
-          <p className="empty">è¼‰å…¥ä¸­â€¦</p>
+          <p className="empty">載入中…</p>
         ) : sortedFiltered.length === 0 ? (
-          <p className="empty">å°šç„¡æ—¥è¨˜ï¼Œå¯«ä¸‹ç¬¬ä¸€ç­†å§ï¼</p>
+          <p className="empty">尚無日記，寫下第一則吧！</p>
         ) : (
           <ul className="entries">
             {sortedFiltered.map((e) => (
@@ -758,20 +731,20 @@ export default function DiaryPage() {
                       <span className="entry-summary">{summary(e.content)}</span>
                       {sentimentView(e.sentiment)}
                       {e.localPending && (
-                        <span className="chip chip-pending" title="å°šæœªåŒæ­¥">å¾…åŒæ­¥</span>
+                        <span className="chip chip-pending" title="尚未同步">待同步</span>
                       )}
                     </>
                   )}
                 </div>
                 {editingId === e.id ? (
                   <div className="entry-actions">
-                    <button className="btn btn-primary" onClick={() => saveEdit(e.id)}>å„²å­˜</button>
-                    <button className="btn btn-secondary" onClick={() => { setEditingId(null); setEditingText('') }}>å–æ¶ˆ</button>
+                    <button className="btn btn-primary" onClick={() => saveEdit(e.id)}>儲存</button>
+                    <button className="btn btn-secondary" onClick={() => { setEditingId(null); setEditingText('') }}>取消</button>
                   </div>
                 ) : (
                   <div className="entry-actions">
-                    <button className="btn btn-outline" onClick={() => startEdit(e.id, e.content)}>ç·¨è¼¯</button>
-                    <button className="btn btn-danger" onClick={() => softDelete(e.id)}>åˆªé™¤</button>
+                    <button className="btn btn-outline" onClick={() => startEdit(e.id, e.content)}>編輯</button>
+                    <button className="btn btn-danger" onClick={() => softDelete(e.id)}>刪除</button>
                   </div>
                 )}
               </li>
@@ -782,23 +755,23 @@ export default function DiaryPage() {
           <p style={{ color: 'crimson', marginTop: '0.75rem' }}>{error}</p>
         )}
       </div>
-      
-      {/* Insights Section */}
+
+      {/* Insights 區塊 */}
       <div className="list" style={{ marginTop: '1.5rem' }}>
-        <h2 className="subtitle">æƒ…ç·’è¦–è¦ºåŒ–</h2>
+        <h2 className="subtitle">情緒視覺化</h2>
         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button className={`btn ${tab === 'line' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('line')}>æŠ˜ç·šåœ–</button>
-          <button className={`btn ${tab === 'heat' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('heat')}>ç†±åŠ›åœ–</button>
+          <button className={`btn ${tab === 'line' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('line')}>折線圖</button>
+          <button className={`btn ${tab === 'heat' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('heat')}>熱力圖</button>
         </div>
 
         {tab === 'line' && (
           <div style={{ marginTop: 12 }}>
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <button className={`btn ${range === 'week' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => setRange('week')}>æœ€è¿‘ 7 å¤©</button>
-              <button className={`btn ${range === 'month' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => setRange('month')}>æœ€è¿‘ 30 å¤©</button>
+              <button className={`btn ${range === 'week' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => setRange('week')}>最近 7 天</button>
+              <button className={`btn ${range === 'month' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => setRange('month')}>最近 30 天</button>
             </div>
             {loading ? (
-              <p className="empty">è¼‰å…¥ä¸­â€¦</p>
+              <p className="empty">載入中…</p>
             ) : (
               <div style={{ width: '100%', height: 320 }}>
                 <ResponsiveContainer>
@@ -811,7 +784,7 @@ export default function DiaryPage() {
                       tickMargin={12}
                     />
                     <YAxis domain={[0, 1]} tickCount={6} />
-                    {/* Sentiment bands */}
+                    {/* 區帶：負/中/正 */}
                     <ReferenceArea y1={0} y2={0.3} fill="#fee2e2" fillOpacity={0.6} strokeOpacity={0} />
                     <ReferenceArea y1={0.3} y2={0.7} fill="#f3f4f6" fillOpacity={0.6} strokeOpacity={0} />
                     <ReferenceArea y1={0.7} y2={1} fill="#dcfce7" fillOpacity={0.6} strokeOpacity={0} />
@@ -822,7 +795,7 @@ export default function DiaryPage() {
                       formatter={(val) => {
                         const s = Number(val)
                         const m = scoreLabel(s)
-                        return [`${s?.toFixed?.(2)} ${m.emoji} ${m.text}`, 'æƒ…ç·’']
+                        return [`${s?.toFixed?.(2)} ${m.emoji} ${m.text}`, '情緒']
                       }}
                     />
                     <Line
@@ -856,12 +829,12 @@ export default function DiaryPage() {
         {tab === 'heat' && (
           <div style={{ marginTop: 12 }}>
             {loading ? (
-              <p className="empty">è¼‰å…¥ä¸­â€¦</p>
+              <p className="empty">載入中…</p>
             ) : (
               <>
                 <div className="heatmap">
                   <div className="heatmap-grid">
-                    {['æ—¥','ä¸€','äºŒ','ä¸‰','å››','äº”','å…­'].map((d) => (
+                    {['日','一','二','三','四','五','六'].map((d) => (
                       <div key={`h-${d}`} className="heatmap-header">{d}</div>
                     ))}
                     {monthHeat.map((d, idx) => {
@@ -882,7 +855,7 @@ export default function DiaryPage() {
                           key={d.date}
                           className={`heat-cell ${cls}`}
                           style={style}
-                          title={isFuture ? `${d.date} - æœªä¾†` : `${d.date}${score != null ? ` - å¹³å‡ ${score.toFixed(2)}` : ''}`}
+                          title={isFuture ? `${d.date} - 未來` : `${d.date}${score != null ? ` - 平均 ${score.toFixed(2)}` : ''}`}
                           onClick={() => !isFuture && setSelectedDay(d.date)}
                           disabled={isFuture}
                         >
@@ -892,17 +865,17 @@ export default function DiaryPage() {
                     })}
                   </div>
                   <div className="heat-legend">
-                    <span className="legend neg">è² å‘</span>
-                    <span className="legend neutral">ä¸­ç«‹</span>
-                    <span className="legend pos">æ­£å‘</span>
+                    <span className="legend neg">負向</span>
+                    <span className="legend neutral">中立</span>
+                    <span className="legend pos">正向</span>
                   </div>
                 </div>
 
                 {selectedDay && (
                   <div style={{ marginTop: 12 }}>
-                    <h2 className="subtitle">{format(parseISO(selectedDay), 'yyyy/MM/dd')} çš„æ—¥è¨˜</h2>
+                    <h2 className="subtitle">{format(parseISO(selectedDay), 'yyyy/MM/dd')} 的日記</h2>
                     {selectedDayItems.length === 0 ? (
-                      <p className="empty">ç•¶æ—¥æ²’æœ‰æ—¥è¨˜</p>
+                      <p className="empty">當日沒有日記</p>
                     ) : (
                       <ul className="entries">
                         {selectedDayItems.map(e => (
@@ -914,18 +887,18 @@ export default function DiaryPage() {
                                   const s = e.sentiment || {}
                                   const label = s.label || 'neutral'
                                   const cls = label === 'positive' ? 'chip-positive' : (label === 'negative' ? 'chip-negative' : 'chip-neutral')
-                                  const text = label === 'positive' ? 'æ­£å‘' : (label === 'negative' ? 'è² å‘' : 'ä¸­ç«‹')
+                                  const text = label === 'positive' ? '正向' : (label === 'negative' ? '負向' : '中立')
                                   return (
                                     <span className={`chip ${cls}`} style={{ padding: '0 10px', height: 22, lineHeight: '22px' }}>{text}</span>
                                   )
                                 })()}
-                                <span style={{ fontSize: 13, color: '#9ca3af' }}>ï½œ é—œéµå­—top5ï¼š</span>
+                                <span style={{ fontSize: 13, color: '#9ca3af' }}>｜ 關鍵字 top5：</span>
                                 <span className="kw-tags" style={{ marginLeft: 0 }}>
                                   {(Array.isArray(e.sentiment?.topTokens) ? e.sentiment.topTokens.slice(0, 5) : []).map((t, i) => (
                                     <span key={i} className={`kw-tag ${t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')}`}>{t.text}</span>
                                   ))}
                                   {(!Array.isArray(e.sentiment?.topTokens) || e.sentiment.topTokens.length === 0) && (
-                                    <span style={{ fontSize: 13, color: '#9ca3af' }}>â€”</span>
+                                    <span style={{ fontSize: 13, color: '#9ca3af' }}>—</span>
                                   )}
                                 </span>
                               </div>
@@ -971,7 +944,7 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
       }
       if (audioUrl) URL.revokeObjectURL(audioUrl)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -1131,6 +1104,7 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
     </div>
   )
 }
+
 function VoiceInput({ getContent, setContent }) {
   const [recog, setRecog] = useState(null)
   const [listening, setListening] = useState(false)
@@ -1156,30 +1130,30 @@ function VoiceInput({ getContent, setContent }) {
           if (res.isFinal) newFinal += res[0].transcript
           else interimText += res[0].transcript
         }
-        // è½‰æ›å£ä»¤ç‚ºæ¨™é»ž
+        // 將中文口令轉為標點
         const normalizeChunk = (s) => {
           if (!s) return ''
           let t = String(s)
-          // èªžéŸ³å£ä»¤ â†’ æ¨™é»ž
-          t = t.replace(/é€—[é»žç‚¹]/g, 'ï¼Œ')
-               .replace(/å¥[è™Ÿå·ç‚¹]/g, 'ã€‚')
-               .replace(/å•[è™Ÿå·]/g, 'ï¼Ÿ')
-               .replace(/é©šå˜†[è™Ÿå·]|æ„Ÿå˜†[è™Ÿå·]/g, 'ï¼')
-               .replace(/å†’[è™Ÿå·]/g, 'ï¼š')
-               .replace(/åˆ†[è™Ÿå·]/g, 'ï¼›')
-               .replace(/é “[è™Ÿå·]/g, 'ã€')
-               .replace(/æ›è¡Œ/g, '\n')
-               .replace(/ç©ºæ ¼/g, ' ')
+          t = t
+            .replace(/逗[點號]/g, '，')
+            .replace(/句[點號]/g, '。')
+            .replace(/問[號]/g, '？')
+            .replace(/(驚嘆|感嘆)[號]/g, '！')
+            .replace(/冒[號]/g, '：')
+            .replace(/分[號]/g, '；')
+            .replace(/頓[號]/g, '、')
+            .replace(/換行/g, '\n')
+            .replace(/空格/g, ' ')
           return t
         }
         newFinal = normalizeChunk(newFinal)
         interimText = normalizeChunk(interimText)
 
-        // ä¾åœé “æ™‚é–“è‡ªå‹•è£œé€—é»žï¼šè‹¥è·é›¢ä¸Šæ¬¡ç¢ºå®šæ–‡å­— > 1200ms ä¸”æœ€å¾Œä¸€å­—éžæ¨™é»žï¼Œå…ˆè£œé€—é»ž
+        // 依停頓時間自動補逗號：若距離上次確定文字 > 1200ms 且最後一字非標點，先補一個逗號
         if (newFinal) {
           const now = Date.now()
-          const needComma = finalRef.current && !/[ï¼Œã€‚ï¼ï¼Ÿï¼›ã€ï¼š\n]$/.test(finalRef.current) && (now - (lastAppendAtRef.current || 0) >= 1200)
-          if (needComma) finalRef.current += 'ï¼Œ'
+          const needComma = finalRef.current && !/[，。！？；、：\n]$/.test(finalRef.current) && (now - (lastAppendAtRef.current || 0) >= 1200)
+          if (needComma) finalRef.current += '，'
           lastAppendAtRef.current = now
         }
 
@@ -1190,7 +1164,7 @@ function VoiceInput({ getContent, setContent }) {
       } catch {}
     }
     r.onerror = (e) => {
-      // å¿½ç•¥ aborted/no-speechï¼Œé¿å…é¡¯ç¤ºéŒ¯èª¤
+      // 忽略 aborted/no-speech，避免顯示錯誤
       const code = e?.error || ''
       if (code !== 'aborted' && code !== 'no-speech') setErr(code || 'speech error')
       setListening(false)
@@ -1231,19 +1205,20 @@ function VoiceInput({ getContent, setContent }) {
   }
 
   if (!supported) {
-    return <span style={{ fontSize: 12, color: '#9ca3af' }}>æ­¤ç€è¦½å™¨ä¸æ”¯æ´èªžéŸ³è¼¸å…¥</span>
+    return <span style={{ fontSize: 12, color: '#9ca3af' }}>此瀏覽器不支援語音輸入</span>
   }
   return (
     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       <button className={`btn ${listening ? 'btn-danger' : 'btn-secondary'}`} onClick={listening ? stop : start}>
-        {listening ? 'åœæ­¢èªžéŸ³è¼¸å…¥' : 'é–‹å§‹èªžéŸ³è¼¸å…¥'}
+        {listening ? '停止語音輸入' : '開始語音輸入'}
       </button>
-      {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>è†è½ä¸­â€¦è«‹é–‹å§‹èªªè©±</span>}
+      {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>聆聽中…請開始說話</span>}
       {err && <span style={{ fontSize: 12, color: 'crimson' }}>{err}</span>}
     </div>
   )
 }
-// Normalize incoming date to ISO yyyy-MM-dd
+
+// 把輸入的日期正規化為 yyyy-MM-dd
 function normalizeDate(input) {
   try {
     // Firestore Timestamp
@@ -1260,30 +1235,30 @@ function normalizeDate(input) {
     // String forms
     const s = String(input || '').trim()
     if (!s) return todayKey()
-    // Replace common separators with '-'
+    // 去非數字並以 '-' 連接
     const parts = s.replace(/[^0-9]+/g, '-').split('-').filter(Boolean)
     const now = new Date()
     let y, m, d
     if (parts.length === 3) {
-      // Could be yyyy-mm-dd or mm-dd-yy
+      // yyyy-mm-dd 或 mm-dd-yy
       if (parts[0].length === 4) {
         y = Number(parts[0])
         m = Number(parts[1])
         d = Number(parts[2])
       } else {
-        // Assume mm-dd-(yy)yy with current century fallback
+        // 假設 mm-dd-(yy)yy；yy 用 2000 世紀補
         y = Number(parts[2])
         if (y < 100) y = 2000 + y
         m = Number(parts[0])
         d = Number(parts[1])
       }
     } else if (parts.length === 2) {
-      // mm-dd with current year
+      // mm-dd，年用當年
       y = now.getFullYear()
       m = Number(parts[0])
       d = Number(parts[1])
     } else if (parts.length === 1 && parts[0].length >= 8) {
-      // Probably compact yyyymmdd
+      // yyyymmdd
       const str = parts[0]
       y = Number(str.slice(0, 4))
       m = Number(str.slice(4, 6))
@@ -1299,14 +1274,3 @@ function normalizeDate(input) {
     return todayKey()
   }
 }
-
-
-
-
-
-
-
-
-
-
-
