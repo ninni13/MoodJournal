@@ -4,21 +4,14 @@
 
 ## 功能特色
 
-### 當前（Day 25 版）
+### 當前（Day 13 版）
 
-- Google 登入與保護路由：未登入導向 `/login`，登入後進入 `/`
-- 新版登入頁 UI：置中卡片、深色單色背景、可及性與鍵盤操作、卡片底部條款連結
+- Google 登入：LoginPage 提供 Google 登入按鈕
+- 保護路由：未登入導向 `/login`，登入後進入 `/`
 - 雲端儲存：使用者日記存於 Firestore `users/{uid}/diaries/{docId}`
-- 新增 / 編輯 / 刪除：支援軟刪除（`isDeleted=true`），垃圾桶頁可還原/永久刪除
-- 搜尋與篩選：關鍵字搜尋、日期快速區間與自訂區間
-- 情緒視覺化：折線圖 + 月曆熱力圖（Recharts），可切換週/月
-- 每日提醒：設定頁可開啟 email 提醒（GitHub Actions 定時寄送，僅當日未寫才寄）
-- 匯出 / 匯入：JSON、CSV（含情緒欄位）
-- PWA 離線模式：離線可寫，恢復網路自動同步；待同步項目顯示「待同步」標籤
-- 本地加密：寫入 Firestore 前以 AES 加密文字內容（欄位 `contentEnc`）
-- 語音輸入（Web Speech API）：可開始/停止語音輸入，不支援瀏覽器會顯示提示
-- 進階情緒分析整合：可串接外部推論 API（信心分數、關鍵詞貢獻），失敗時回退本地簡易分析
-- 法務頁：`/privacy`、`/terms` 簡版內容（可後續擴充）
+- 新增/編輯/刪除：DiaryPage 可新增、編輯、刪除（軟刪除 `isDeleted=true`）
+- 排序：清單依日期新 → 舊排序
+- 基本防呆：內容空白無法存檔；存檔後自動清空輸入框
 
 ### 里程碑（Day 12–29）
 
@@ -45,13 +38,11 @@
 
 - 框架：React 19
 - 建置工具：Vite 7
-- 語言：JavaScript +（少量）TypeScript（`src/lib/sentiment.ts`）
+- 語言：JavaScript（可逐步導入 TypeScript）
 - 狀態管理：React Hooks（`useState`、`useEffect`、`useMemo`）
-- 路由：React Router v6（含保護路由）
+- 路由：React Router v6
 - 身分驗證：Firebase Auth（Google）
-- 資料庫：Cloud Firestore（`users/{uid}/diaries/{docId}`、`users/{uid}/profile/default`）
-- 視覺化：Recharts（折線圖、熱力圖）
-- 離線儲存：IndexedDB（`src/lib/idb.js`）
+- 資料庫：Cloud Firestore（`users/{uid}/diaries/{docId}`）
 
 ## 安全與隱私
 
@@ -65,7 +56,6 @@
 - 本地加密（前端）：
   - 寫入時用 AES 加密內容，Firestore 儲存密文欄位 `contentEnc`
   - 讀取時在前端解密後顯示明文（相容舊資料）
-  - 備註：金鑰採用使用者 `uid`，不適合高度敏感資料，正式版可引入更完整 KMS 流程
 
 ## 快速開始
 
@@ -98,79 +88,42 @@ VITE_FIREBASE_PROJECT_ID=xxx
 VITE_FIREBASE_APP_ID=1:xxxx:web:xxxx
 VITE_FIREBASE_STORAGE_BUCKET=xxx.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=xxxx
+
+# Optional inference endpoints
+VITE_INFER_URL=https://your-text-infer-endpoint
+VITE_SPEECH_INFER_URL=https://your-speech-infer-endpoint
+# Only set if the speech API expects X-API-Key
+VITE_SPEECH_API_KEY=your-secret-key
 ```
 
 3) 重新啟動 dev server 後即可登入、寫入與讀取日記。
-
-### 文字情緒推論 API（可選）
-
-若要使用外部情緒推論 API，於 `.env.local` 加上：
-
-```
-VITE_INFER_URL=https://your-infer-endpoint
-VITE_API_KEY=your-api-key   # 若不需要驗證可省略
-```
-
-前端會以 `POST { text }` 呼叫 API，期望回傳：`{ ok, label: 'neg|neu|pos', confidence, probs: {neg,neu,pos}, top_tokens, ... }`。
-若呼叫失敗，會自動回退本地簡易分析。
 
 ## 使用方式
 
 - 在輸入框輸入日記內容
 - 點擊「存檔」後，下方清單會即時出現新項目
 - 清單顯示日期與前 30 字摘要，依日期新 → 舊排序
-- 可重整或關閉頁面，離線亦可書寫（IndexedDB），恢復網路後自動同步
-- 可使用語音輸入：不支援之瀏覽器顯示替代提示
+- 可重整或關閉頁面，資料仍保留於本機（`localStorage`）
 
 路由：
-- `/login`：登入頁（Google 登入＋卡片式 UI）
-- `/`：日記頁（新增、編輯、刪除、搜尋、排序、語音輸入）
-- `/insights`：洞察頁（情緒折線圖、月曆熱力圖）
-- `/settings`：設定頁（Email 提醒開關、匯出/匯入）
+- `/login`：登入頁（Google 登入）
+- `/`：日記頁（新增、編輯、刪除；排序）
 - `/trash`：垃圾桶（僅顯示 `isDeleted=true`，支援還原/永久刪除）
-- `/privacy`、`/terms`：隱私權政策、服務條款
-
-### 每日提醒（GitHub Actions）
-
-Workflow 檔：`.github/workflows/reminder.yml`（預設每天 21:00 台灣時間寄送）。
-
-Secrets 需求：
-
-- `FIREBASE_PROJECT_ID`、`CLIENT_EMAIL`、`PRIVATE_KEY`：Firebase Admin 憑證（私鑰記得用 `\n` 轉義換行）
-- `SENDGRID_API_KEY`：SendGrid API Key
-- `FROM_EMAIL`（必要）、`FROM_NAME`（可選）：寄件人
-- `APP_URL`（可選）：信件按鈕前往的網站 URL
-
-說明：
-
-- 腳本路徑 `reminder/scripts/sendReminder.mjs`，使用 Firestore `collectionGroup('profile')` 掃描所有 `users/{uid}/profile/default`，僅對 `reminderEnabled=true` 且當日未寫者寄信。
-- 你也可於本機執行：
-
-```bash
-cd reminder
-npm i
-SENDGRID_API_KEY=xxx FROM_EMAIL=noreply@example.com FIREBASE_PROJECT_ID=... CLIENT_EMAIL=... PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n" node scripts/sendReminder.mjs
-```
+- `/sentiment-test` - text sentiment inference demo page
+- `/speech-test` - speech emotion inference demo page
 
 ## 專案結構（重點）
 
 - `src/App.jsx`：路由設定（含保護路由）
 - `src/pages/LoginPage.jsx`：登入頁
-- `src/pages/DiaryPage.jsx`：日記頁（Firestore CRUD、搜尋 / 篩選、語音輸入、離線同步）
-- `src/pages/InsightsPage.jsx`：洞察頁（折線圖、熱力圖）
-- `src/pages/SettingsPage.jsx`：設定頁（Email 提醒、匯出/匯入）
+- `src/pages/DiaryPage.jsx`：日記頁（Firestore CRUD：新增、編輯、軟刪除、排序）
 - `src/pages/TrashPage.jsx`：垃圾桶頁（還原／永久刪除）
-- `src/pages/PrivacyPage.jsx`、`src/pages/TermsPage.jsx`：法務頁面
 - `src/state/AuthContext.jsx`：使用者狀態（Firebase Auth）
 - `src/lib/firebase.js`：Firebase 初始化（Auth、Firestore）
-- `src/lib/idb.js`：IndexedDB 封裝（離線待同步）
-- `src/lib/sentiment.ts`：外部情緒推論 API 封裝
 - `src/App.css`、`src/index.css`：樣式
-- `src/pages/login.css`：登入頁專用樣式
 - `index.html`：頁面入口
 - `vite.config.js`：Vite 設定
 - `package.json`：腳本與相依套件
-- `public/sw.js`：PWA Service Worker（僅正式環境註冊）
 
 ### 主要使用的 Firebase API
 

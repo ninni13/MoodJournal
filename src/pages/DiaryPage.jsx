@@ -621,6 +621,8 @@ export default function DiaryPage() {
         <div>
           <Link to="/settings" style={{ marginRight: '0.75rem', fontSize: 14 }}>設定</Link>
           <Link to="/trash" style={{ marginRight: '0.75rem', fontSize: 14 }}>垃圾桶</Link>
+          <Link to="/sentiment-test" style={{ marginRight: '0.75rem', fontSize: 14 }}>Sentiment test</Link>
+          <Link to="/speech-test" style={{ marginRight: '0.75rem', fontSize: 14 }}>Speech test</Link>
           <span style={{ marginRight: '0.75rem', color: '#666', fontSize: 14 }}>{currentUser?.displayName}</span>
           <button className="btn btn-outline" onClick={logout}>登出</button>
         </div>
