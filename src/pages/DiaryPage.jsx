@@ -993,18 +993,24 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
           streamRef.current.getTracks().forEach(track => track.stop())
           streamRef.current = null
         }
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' })
+        const mime = (recorder.mimeType && recorder.mimeType.startsWith('audio/')) ? recorder.mimeType : 'audio/webm;codecs=opus'
+        const blob = new Blob(chunksRef.current, { type: mime })
+        console.log('[speech] recorder stopped', { mimeType: recorder.mimeType, usedMime: mime, size: blob.size })
         chunksRef.current = []
         handleBlob(blob)
       }
       mediaRecorderRef.current = recorder
       streamRef.current = stream
-      recorder.start()
+      try {
+        recorder.start(500)
+      } catch (err) {
+        recorder.start()
+      }
       setRecording(true)
       onBusyChange?.(true)
     } catch (err) {
       console.error('[speech] recorder start failed', err)
-      setError(err?.message || '無法開始錄音')
+      setError(err?.message || '??????')
       onBusyChange?.(false)
     }
   }
@@ -1039,6 +1045,12 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
         URL.revokeObjectURL(audioUrl)
         setAudioUrl('')
       }
+      if (!blob || !blob.size) {
+        console.warn('[speech] empty blob, skip playback/inference')
+        setError('??????,?????')
+        onBusyChange?.(false)
+        return
+      }
       const url = URL.createObjectURL(blob)
       setAudioUrl(url)
       setLoading(true)
@@ -1048,7 +1060,7 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
       setError('')
     } catch (err) {
       console.error('[speech] infer failed', err)
-      setError(err?.message || '語音情緒辨識失敗')
+      setError(err?.message || '????????')
       onEmotion?.(null)
     } finally {
       setLoading(false)
