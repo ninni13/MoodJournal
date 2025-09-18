@@ -1047,8 +1047,7 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     sessionRef.current = sessionId
 
     baseRef.current = getContent ? (getContent() || '') : ''
-    if (baseRef.current && !(baseRef.current.endsWith('
-') || baseRef.current.endsWith(' '))) baseRef.current += ' '
+    if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) baseRef.current += ' '
     finalRef.current = ''
     setInterim('')
     lastAppendAtRef.current = Date.now()
