@@ -603,7 +603,7 @@ export default function DiaryPage() {
   return (
     <div className="container">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="title" style={{ marginBottom: 0 }}>我的情緒日記</h1>
+        <h1 className="title" style={{ marginBottom: 0 }}>霓的情緒日記</h1>
         <div>
           <Link to="/settings" style={{ marginRight: '0.75rem', fontSize: 14 }}>設定</Link>
           <Link to="/trash" style={{ marginRight: '0.75rem', fontSize: 14 }}>垃圾桶</Link>
@@ -678,13 +678,29 @@ export default function DiaryPage() {
         />
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexGrow: 1, minWidth: 0 }}>
-            <VoiceInput
-              getContent={() => content}
-              setContent={setContent}
-              onSpeechEmotion={setSpeechEmotion}
-              onSpeechBusy={setSpeechBusy}
+            <VoiceInput getContent={() => content} setContent={setContent} />
+            <SpeechEmotionRecorder
+              onEmotion={setSpeechEmotion}
+              onBusyChange={setSpeechBusy}
               resetKey={speechResetKey}
             />
+            {speechEmotion && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 12, color: '#666' }}>語音情緒</span>
+                {sentimentView(speechEmotion)}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  style={{ padding: '0 8px', height: 30 }}
+                  onClick={() => {
+                    setSpeechEmotion(null)
+                    setSpeechResetKey(key => key + 1)
+                  }}
+                >
+                  清除
+                </button>
+              </div>
+            )}
           </div>
           <button className="btn btn-primary" onClick={handleSave} disabled={!canSave} style={{ marginLeft: 'auto' }}>儲存</button>
         </div>
@@ -902,60 +918,158 @@ export default function DiaryPage() {
   )
 }
 
-function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, resetKey }) {
-  const [recog, setRecog] = useState(null)
-  const [listening, setListening] = useState(false)
+function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
+  const isClient = typeof navigator !== 'undefined'
+  const initialSupport = isClient && !!(navigator?.mediaDevices && window.MediaRecorder)
+  const [supported, setSupported] = useState(initialSupport)
   const [recording, setRecording] = useState(false)
-  const [supported, setSupported] = useState(true)
-  const [err, setErr] = useState('')
-  const [interim, setInterim] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
   const [audioUrl, setAudioUrl] = useState('')
   const [audioMime, setAudioMime] = useState('')
 
-  const baseRef = useRef('')
-  const finalRef = useRef('')
-  const lastAppendAtRef = useRef(0)
   const mediaRecorderRef = useRef(null)
   const streamRef = useRef(null)
   const chunksRef = useRef([])
-  const audioUrlRef = useRef('')
 
   useEffect(() => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) setSupported(false)
+    if (!supported && isClient) {
+      const ok = !!(navigator?.mediaDevices && window.MediaRecorder)
+      setSupported(ok)
+      if (!ok) onBusyChange?.(false)
+    }
     return () => {
-      stopRecorder()
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
         streamRef.current = null
       }
-      clearAudio()
+      if (audioUrl) URL.revokeObjectURL(audioUrl)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
-    if (resetKey == null) return
-    stop()
-    clearAudio()
-    onSpeechEmotion?.(null)
+    if (!audioUrl) return undefined
+    return () => { URL.revokeObjectURL(audioUrl) }
+  }, [audioUrl])
+
+  useEffect(() => {
+    onEmotion?.(null)
+    setError('')
+    setRecording(false)
+    setLoading(false)
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl)
+      setAudioUrl('')
+      setAudioMime('')
+    }
     chunksRef.current = []
-    setErr('')
-    setInterim('')
+    if (mediaRecorderRef.current) {
+      try { mediaRecorderRef.current.stop() } catch {}
+      mediaRecorderRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
   }, [resetKey])
 
-  function clearAudio() {
-    if (audioUrlRef.current) {
-      URL.revokeObjectURL(audioUrlRef.current)
-      audioUrlRef.current = ''
+  async function startRecording() {
+    if (loading || recording) return
+    setError('')
+    onEmotion?.(null)
+    if (!supported) {
+      setError('瀏覽器不支援錄音')
+      return
     }
-    setAudioUrl('')
-    setAudioMime('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const recorder = new MediaRecorder(stream)
+      chunksRef.current = []
+      recorder.ondataavailable = (evt) => {
+        if (evt.data && evt.data.size > 0) chunksRef.current.push(evt.data)
+      }
+      recorder.onstop = () => {
+        setRecording(false)
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop())
+          streamRef.current = null
+        }
+        const mime = (recorder.mimeType && recorder.mimeType.startsWith('audio/')) ? recorder.mimeType : 'audio/webm;codecs=opus'
+        const blob = new Blob(chunksRef.current, { type: mime })
+        console.log('[speech] recorder stopped', { mimeType: recorder.mimeType, usedMime: mime, size: blob.size })
+        chunksRef.current = []
+        handleBlob(blob, mime)
+      }
+      mediaRecorderRef.current = recorder
+      streamRef.current = stream
+      try {
+        recorder.start(500)
+      } catch (err) {
+        recorder.start()
+      }
+      setRecording(true)
+      onBusyChange?.(true)
+    } catch (err) {
+      console.error('[speech] recorder start failed', err)
+      setError(err?.message || '??????')
+      onBusyChange?.(false)
+    }
   }
 
-  function stopRecorder() {
+  function stopRecording() {
     const recorder = mediaRecorderRef.current
-    if (recorder && recorder.state !== 'inactive') {
-      try { recorder.stop() } catch {}
+    if (!recorder) return
+    try { recorder.stop() } catch {}
+  }
+
+  function clearAll() {
+    if (recording) stopRecording()
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current = null
+    }
+    chunksRef.current = []
+    if (audioUrl) {
+      URL.revokeObjectURL(audioUrl)
+      setAudioUrl('')
+      setAudioMime('')
+    }
+    setError('')
+    setLoading(false)
+    setRecording(false)
+    onEmotion?.(null)
+    onBusyChange?.(false)
+  }
+
+  async function handleBlob(blob, mimeUsed = 'audio/webm;codecs=opus') {
+    try {
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl)
+        setAudioUrl('')
+        setAudioMime('')
+      }
+      if (!blob || !blob.size) {
+        console.warn('[speech] empty blob, skip playback/inference')
+        setError('??????,?????')
+        onBusyChange?.(false)
+        return
+      }
+      const url = URL.createObjectURL(blob)
+      setAudioUrl(url)
+      setAudioMime(mimeUsed || 'audio/webm;codecs=opus')
+      setLoading(true)
+      const resp = await inferSpeechEmotion(blob)
+      const mapped = mapSpeechEmotion(resp)
+      onEmotion?.(mapped)
+      setError('')
+    } catch (err) {
+      console.error('[speech] infer failed', err)
+      setError(err?.message || '????????')
+      onEmotion?.(null)
+    } finally {
+      setLoading(false)
+      onBusyChange?.(false)
     }
   }
 
@@ -980,6 +1094,52 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     }
   }
 
+  if (!supported) {
+    return <span style={{ fontSize: 12, color: '#9ca3af' }}>語音錄製不支援</span>
+  }
+
+  return (
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      {!recording ? (
+        <button className="btn btn-secondary" type="button" onClick={startRecording} disabled={loading}>
+          錄音情緒
+        </button>
+      ) : (
+        <button className="btn btn-danger" type="button" onClick={stopRecording}>
+          停止錄音
+        </button>
+      )}
+      <button className="btn btn-outline" type="button" onClick={clearAll} disabled={loading && !recording}>
+        清空
+      </button>
+      {loading && <span style={{ fontSize: 12, color: '#9ca3af' }}>分析中…</span>}
+      {recording && !loading && <span style={{ fontSize: 12, color: '#9ca3af' }}>錄音中</span>}
+      {audioUrl && !recording && (
+        <audio key={audioUrl} controls style={{ height: 32 }} preload="auto">
+          <source src={audioUrl} type={audioMime || 'audio/webm;codecs=opus'} />
+          ??????????????
+        </audio>
+      )}
+      {error && <span style={{ fontSize: 12, color: 'crimson' }}>{error}</span>}
+    </div>
+  )
+}
+
+function VoiceInput({ getContent, setContent }) {
+  const [recog, setRecog] = useState(null)
+  const [listening, setListening] = useState(false)
+  const [supported, setSupported] = useState(true)
+  const [err, setErr] = useState('')
+  const [interim, setInterim] = useState('')
+  const baseRef = useRef('')
+  const finalRef = useRef('')
+  const lastAppendAtRef = useRef(0)
+
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) setSupported(false)
+  }, [])
+
   function attachHandlers(r) {
     r.onresult = (e) => {
       try {
@@ -990,107 +1150,59 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
           if (res.isFinal) newFinal += res[0].transcript
           else interimText += res[0].transcript
         }
-        const normalizeChunk = (s) => String(s)
+        // 將中文口令轉為標點
+        const normalizeChunk = (s) => {
+          if (!s) return ''
+          let t = String(s)
+          t = t
+            .replace(/逗[點號]/g, '，')
+            .replace(/句[點號]/g, '。')
+            .replace(/問[號]/g, '？')
+            .replace(/(驚嘆|感嘆)[號]/g, '！')
+            .replace(/冒[號]/g, '：')
+            .replace(/分[號]/g, '；')
+            .replace(/頓[號]/g, '、')
+            .replace(/換行/g, '\n')
+            .replace(/空格/g, ' ')
+          return t
+        }
         newFinal = normalizeChunk(newFinal)
         interimText = normalizeChunk(interimText)
 
+        // 依停頓時間自動補逗號：若距離上次確定文字 > 1200ms 且最後一字非標點，先補一個逗號
         if (newFinal) {
           const now = Date.now()
-          const endsWithPunctuation = /[，。？！；：]$/.test(finalRef.current) || finalRef.current.endsWith('\n')
-          const needComma = finalRef.current && !endsWithPunctuation && (now - (lastAppendAtRef.current || 0) >= 1200)
+          const needComma = finalRef.current && !/[，。！？；、：\n]$/.test(finalRef.current) && (now - (lastAppendAtRef.current || 0) >= 1200)
           if (needComma) finalRef.current += '，'
           lastAppendAtRef.current = now
         }
 
         if (newFinal) finalRef.current += newFinal
         const display = `${baseRef.current}${finalRef.current}${interimText}`
-        if (setContent) setContent(display)
+        setContent && setContent(display)
         setInterim(interimText)
-      } catch (error) {
-        console.error('[voice] onresult error', error)
-      }
+      } catch {}
     }
     r.onerror = (e) => {
+      // 忽略 aborted/no-speech，避免顯示錯誤
       const code = e?.error || ''
       if (code !== 'aborted' && code !== 'no-speech') setErr(code || 'speech error')
-      stopRecorder()
       setListening(false)
       setInterim('')
     }
     r.onend = () => {
-      stopRecorder()
       setListening(false)
-      if (setContent) setContent(`${baseRef.current}${finalRef.current}`)
+      setContent && setContent(`${baseRef.current}${finalRef.current}`)
       setInterim('')
       setRecog(null)
     }
   }
 
-  async function start() {
+  function start() {
     setErr('')
-    if (listening || recording) return
+    if (listening) return
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) {
-      setSupported(false)
-      setErr('瀏覽器不支援語音輸入')
-      return
-    }
-    if (!(navigator?.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-      setErr('瀏覽器不支援錄音')
-      return
-    }
-
-    onSpeechEmotion?.(null)
-    clearAudio()
-
-    let stream
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    } catch (err) {
-      console.error('[speech] getUserMedia failed', err)
-      setErr(err?.message || '無法開始錄音')
-      onSpeechBusy?.(false)
-      return
-    }
-
-    try {
-      const recorder = new MediaRecorder(stream)
-      chunksRef.current = []
-      recorder.ondataavailable = (evt) => {
-        if (evt.data && evt.data.size > 0) chunksRef.current.push(evt.data)
-      }
-      recorder.onstop = () => {
-        mediaRecorderRef.current = null
-        setRecording(false)
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop())
-          streamRef.current = null
-        }
-        const mime = (recorder.mimeType && recorder.mimeType.startsWith('audio/')) ? recorder.mimeType : 'audio/webm;codecs=opus'
-        const blob = new Blob(chunksRef.current, { type: mime })
-        console.log('[speech] recorder stopped', { mimeType: recorder.mimeType, usedMime: mime, size: blob.size })
-        chunksRef.current = []
-        handleBlob(blob, mime)
-      }
-      mediaRecorderRef.current = recorder
-      streamRef.current = stream
-      try {
-        recorder.start(500)
-      } catch (err) {
-        recorder.start()
-      }
-      setRecording(true)
-      onSpeechBusy?.(true)
-    } catch (err) {
-      console.error('[speech] recorder start failed', err)
-      setErr(err?.message || '無法開始錄音')
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
-      }
-      onSpeechBusy?.(false)
-      return
-    }
-
+    if (!SR) { setSupported(false); return }
     const r = new SR()
     r.lang = 'zh-TW'
     r.interimResults = true
@@ -1101,84 +1213,32 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     finalRef.current = ''
     setInterim('')
     lastAppendAtRef.current = Date.now()
-    try {
-      r.start()
-      setRecog(r)
-      setListening(true)
-    } catch (err) {
-      console.error('[speech] recognition start failed', err)
-      setErr(err?.message || '語音辨識啟動失敗')
-      stopRecorder()
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
-        streamRef.current = null
-      }
-      onSpeechBusy?.(false)
-    }
+    try { r.start(); setRecog(r); setListening(true) } catch {}
   }
-
   function stop() {
     const r = recog
-    if (r) {
-      try { r.stop() } catch {}
-      try { r.abort() } catch {}
-    }
-    stopRecorder()
+    if (!r) { setListening(false); return }
+    try { r.stop() } catch {}
+    try { r.abort() } catch {}
     setListening(false)
     setInterim('')
   }
 
-  async function handleBlob(blob, mimeUsed = 'audio/webm;codecs=opus') {
-    try {
-      clearAudio()
-      if (!blob || !blob.size) {
-        console.warn('[speech] empty blob, skip playback/inference')
-        setErr('錄音內容為空，請再試一次')
-        onSpeechBusy?.(false)
-        return
-      }
-      const url = URL.createObjectURL(blob)
-      audioUrlRef.current = url
-      setAudioUrl(url)
-      setAudioMime(mimeUsed || 'audio/webm;codecs=opus')
-      const resp = await inferSpeechEmotion(blob)
-      const mapped = mapSpeechEmotion(resp)
-      onSpeechEmotion?.(mapped)
-      setErr('')
-    } catch (err) {
-      console.error('[speech] infer failed', err)
-      setErr(err?.message || '語音情緒辨識失敗')
-      onSpeechEmotion?.(null)
-    } finally {
-      onSpeechBusy?.(false)
-    }
-  }
-
   if (!supported) {
-    return <span style={{ fontSize: 12, color: '#9ca3af' }}>瀏覽器不支援語音輸入</span>
+    return <span style={{ fontSize: 12, color: '#9ca3af' }}>此瀏覽器不支援語音輸入</span>
   }
-
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
       <button className={`btn ${listening ? 'btn-danger' : 'btn-secondary'}`} onClick={listening ? stop : start}>
         {listening ? '停止語音輸入' : '開始語音輸入'}
       </button>
-      {audioUrl && !listening && (
-        <audio key={audioUrl} controls preload="auto" style={{ height: 32 }}>
-          <source src={audioUrl} type={audioMime || 'audio/webm;codecs=opus'} />
-          您的瀏覽器無法播放錄音檔案。
-        </audio>
-      )}
-      {listening && (
-        <span style={{ fontSize: 12, color: '#9ca3af' }}>
-          語音輸入中…{interim ? `（${interim}）` : ''}
-        </span>
-      )}
+      {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>聆聽中…請開始說話</span>}
       {err && <span style={{ fontSize: 12, color: 'crimson' }}>{err}</span>}
     </div>
   )
 }
 
+// 把輸入的日期正規化為 yyyy-MM-dd
 function normalizeDate(input) {
   try {
     // Firestore Timestamp
@@ -1234,8 +1294,3 @@ function normalizeDate(input) {
     return todayKey()
   }
 }
-
-
-
-
-
