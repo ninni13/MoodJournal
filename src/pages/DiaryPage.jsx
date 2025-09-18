@@ -996,8 +996,8 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
 
         if (newFinal) {
           const now = Date.now()
-          const needComma = finalRef.current && !/[，。？！；：
-]$/.test(finalRef.current) && (now - (lastAppendAtRef.current || 0) >= 1200)
+          const endsWithPunctuation = /[，。？！；：]$/.test(finalRef.current) || finalRef.current.endsWith('\n')
+          const needComma = finalRef.current && !endsWithPunctuation && (now - (lastAppendAtRef.current || 0) >= 1200)
           if (needComma) finalRef.current += '，'
           lastAppendAtRef.current = now
         }
@@ -1097,8 +1097,7 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     r.continuous = true
     attachHandlers(r)
     baseRef.current = getContent ? (getContent() || '') : ''
-    if (baseRef.current && !(baseRef.current.endsWith('
-') || baseRef.current.endsWith(' '))) baseRef.current += ' '
+    if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) baseRef.current += ' '
     finalRef.current = ''
     setInterim('')
     lastAppendAtRef.current = Date.now()
@@ -1235,6 +1234,7 @@ function normalizeDate(input) {
     return todayKey()
   }
 }
+
 
 
 
