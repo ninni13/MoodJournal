@@ -924,22 +924,18 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) setSupported(false)
     return () => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        try { mediaRecorderRef.current.stop() } catch {}
-      }
+      stopRecorder()
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop())
         streamRef.current = null
       }
-      if (audioUrlRef.current) {
-        URL.revokeObjectURL(audioUrlRef.current)
-        audioUrlRef.current = ''
-      }
+      clearAudio()
     }
   }, [])
 
   useEffect(() => {
     if (resetKey == null) return
+    stop()
     clearAudio()
     onSpeechEmotion?.(null)
     chunksRef.current = []
@@ -954,6 +950,13 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     }
     setAudioUrl('')
     setAudioMime('')
+  }
+
+  function stopRecorder() {
+    const recorder = mediaRecorderRef.current
+    if (recorder && recorder.state !== 'inactive') {
+      try { recorder.stop() } catch {}
+    }
   }
 
   function mapSpeechEmotion(resp) {
@@ -977,13 +980,6 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     }
   }
 
-  function stopRecorder() {
-    const recorder = mediaRecorderRef.current
-    if (recorder && recorder.state !== 'inactive') {
-      try { recorder.stop() } catch {}
-    }
-  }
-
   function attachHandlers(r) {
     r.onresult = (e) => {
       try {
@@ -994,36 +990,25 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
           if (res.isFinal) newFinal += res[0].transcript
           else interimText += res[0].transcript
         }
-        const normalizeChunk = (s) => {
-          if (!s) return ''
-          let t = String(s)
-          t = t
-            .replace(/[，,]/g, '，')
-            .replace(/[。\.]/g, '。')
-            .replace(/[？\?]/g, '？')
-            .replace(/([！!])+/g, '！')
-            .replace(/[：:]/g, '：')
-            .replace(/[；;]/g, '；')
-            .replace(/[、]/g, '、')
-            .replace(/\r?\n/g, '\n')
-            .replace(/\s+/g, ' ')
-          return t
-        }
+        const normalizeChunk = (s) => String(s)
         newFinal = normalizeChunk(newFinal)
         interimText = normalizeChunk(interimText)
 
         if (newFinal) {
           const now = Date.now()
-          const needComma = finalRef.current && !/[，。？！；：\n]$/.test(finalRef.current) && (now - (lastAppendAtRef.current || 0) >= 1200)
+          const needComma = finalRef.current && !/[，。？！；：
+]$/.test(finalRef.current) && (now - (lastAppendAtRef.current || 0) >= 1200)
           if (needComma) finalRef.current += '，'
           lastAppendAtRef.current = now
         }
 
         if (newFinal) finalRef.current += newFinal
         const display = `${baseRef.current}${finalRef.current}${interimText}`
-        setContent && setContent(display)
+        if (setContent) setContent(display)
         setInterim(interimText)
-      } catch {}
+      } catch (error) {
+        console.error('[voice] onresult error', error)
+      }
     }
     r.onerror = (e) => {
       const code = e?.error || ''
@@ -1035,7 +1020,7 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     r.onend = () => {
       stopRecorder()
       setListening(false)
-      setContent && setContent(`${baseRef.current}${finalRef.current}`)
+      if (setContent) setContent(`${baseRef.current}${finalRef.current}`)
       setInterim('')
       setRecog(null)
     }
@@ -1043,7 +1028,7 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
 
   async function start() {
     setErr('')
-    if (listening) return
+    if (listening || recording) return
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) {
       setSupported(false)
@@ -1112,7 +1097,8 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     r.continuous = true
     attachHandlers(r)
     baseRef.current = getContent ? (getContent() || '') : ''
-    if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) baseRef.current += ' '
+    if (baseRef.current && !(baseRef.current.endsWith('
+') || baseRef.current.endsWith(' '))) baseRef.current += ' '
     finalRef.current = ''
     setInterim('')
     lastAppendAtRef.current = Date.now()
@@ -1120,7 +1106,16 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
       r.start()
       setRecog(r)
       setListening(true)
-    } catch {}
+    } catch (err) {
+      console.error('[speech] recognition start failed', err)
+      setErr(err?.message || '語音辨識啟動失敗')
+      stopRecorder()
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
+      }
+      onSpeechBusy?.(false)
+    }
   }
 
   function stop() {
@@ -1175,7 +1170,11 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
           您的瀏覽器無法播放錄音檔案。
         </audio>
       )}
-      {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>語音輸入中…</span>}
+      {listening && (
+        <span style={{ fontSize: 12, color: '#9ca3af' }}>
+          語音輸入中…{interim ? `（${interim}）` : ''}
+        </span>
+      )}
       {err && <span style={{ fontSize: 12, color: 'crimson' }}>{err}</span>}
     </div>
   )
