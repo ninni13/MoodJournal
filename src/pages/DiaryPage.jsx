@@ -919,6 +919,7 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
   const streamRef = useRef(null)
   const chunksRef = useRef([])
   const audioUrlRef = useRef('')
+  const sessionRef = useRef(0)
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -1042,13 +1043,60 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     onSpeechEmotion?.(null)
     clearAudio()
 
+    const sessionId = sessionRef.current + 1
+    sessionRef.current = sessionId
+
+    baseRef.current = getContent ? (getContent() || '') : ''
+    if (baseRef.current && !(baseRef.current.endsWith('
+') || baseRef.current.endsWith(' '))) baseRef.current += ' '
+    finalRef.current = ''
+    setInterim('')
+    lastAppendAtRef.current = Date.now()
+
+    const recognition = new SR()
+    recognition.lang = 'zh-TW'
+    recognition.interimResults = true
+    recognition.continuous = true
+    attachHandlers(recognition)
+
+    const streamPromise = navigator.mediaDevices.getUserMedia({ audio: true })
+
+    try {
+      recognition.start()
+      setRecog(recognition)
+      setListening(true)
+    } catch (err) {
+      console.error('[speech] recognition start failed', err)
+      setErr(err?.message || '語音辨識啟動失敗')
+      onSpeechBusy?.(false)
+      streamPromise.then(stream => {
+        stream.getTracks().forEach(track => track.stop())
+      }).catch(() => {})
+      return
+    }
+
     let stream
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream = await streamPromise
     } catch (err) {
       console.error('[speech] getUserMedia failed', err)
       setErr(err?.message || '無法開始錄音')
+      try {
+        recognition.stop()
+        recognition.abort()
+      } catch {}
+      setListening(false)
+      setRecog(null)
       onSpeechBusy?.(false)
+      return
+    }
+
+    if (sessionRef.current !== sessionId) {
+      try {
+        recognition.stop()
+        recognition.abort()
+      } catch {}
+      stream.getTracks().forEach(track => track.stop())
       return
     }
 
@@ -1083,40 +1131,20 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     } catch (err) {
       console.error('[speech] recorder start failed', err)
       setErr(err?.message || '無法開始錄音')
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
-      }
-      onSpeechBusy?.(false)
-      return
-    }
-
-    const r = new SR()
-    r.lang = 'zh-TW'
-    r.interimResults = true
-    r.continuous = true
-    attachHandlers(r)
-    baseRef.current = getContent ? (getContent() || '') : ''
-    if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) baseRef.current += ' '
-    finalRef.current = ''
-    setInterim('')
-    lastAppendAtRef.current = Date.now()
-    try {
-      r.start()
-      setRecog(r)
-      setListening(true)
-    } catch (err) {
-      console.error('[speech] recognition start failed', err)
-      setErr(err?.message || '語音辨識啟動失敗')
-      stopRecorder()
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
-        streamRef.current = null
-      }
+      stream.getTracks().forEach(track => track.stop())
+      try {
+        recognition.stop()
+        recognition.abort()
+      } catch {}
+      setListening(false)
+      setRecog(null)
       onSpeechBusy?.(false)
     }
   }
 
+
   function stop() {
+    sessionRef.current += 1
     const r = recog
     if (r) {
       try { r.stop() } catch {}
