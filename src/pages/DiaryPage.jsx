@@ -1052,55 +1052,24 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     setInterim('')
     lastAppendAtRef.current = Date.now()
 
-    const recognition = new SR()
-    recognition.lang = 'zh-TW'
-    recognition.interimResults = true
-    recognition.continuous = true
-    attachHandlers(recognition)
-
-    const streamPromise = navigator.mediaDevices.getUserMedia({ audio: true })
-
-    try {
-      recognition.start()
-      setRecog(recognition)
-      setListening(true)
-    } catch (err) {
-      console.error('[speech] recognition start failed', err)
-      setErr(err?.message || '語音辨識啟動失敗')
-      onSpeechBusy?.(false)
-      streamPromise.then(stream => {
-        stream.getTracks().forEach(track => track.stop())
-      }).catch(() => {})
-      return
-    }
-
     let stream
     try {
-      stream = await streamPromise
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     } catch (err) {
       console.error('[speech] getUserMedia failed', err)
       setErr(err?.message || '無法開始錄音')
-      try {
-        recognition.stop()
-        recognition.abort()
-      } catch {}
-      setListening(false)
-      setRecog(null)
       onSpeechBusy?.(false)
       return
     }
 
     if (sessionRef.current !== sessionId) {
-      try {
-        recognition.stop()
-        recognition.abort()
-      } catch {}
       stream.getTracks().forEach(track => track.stop())
       return
     }
 
+    let recorder
     try {
-      const recorder = new MediaRecorder(stream)
+      recorder = new MediaRecorder(stream)
       chunksRef.current = []
       recorder.ondataavailable = (evt) => {
         if (evt.data && evt.data.size > 0) chunksRef.current.push(evt.data)
@@ -1118,29 +1087,77 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
         chunksRef.current = []
         handleBlob(blob, mime)
       }
-      mediaRecorderRef.current = recorder
-      streamRef.current = stream
-      try {
-        recorder.start(500)
-      } catch (err) {
-        recorder.start()
-      }
-      setRecording(true)
-      onSpeechBusy?.(true)
     } catch (err) {
-      console.error('[speech] recorder start failed', err)
+      console.error('[speech] recorder init failed', err)
       setErr(err?.message || '無法開始錄音')
       stream.getTracks().forEach(track => track.stop())
-      try {
-        recognition.stop()
-        recognition.abort()
-      } catch {}
-      setListening(false)
-      setRecog(null)
       onSpeechBusy?.(false)
+      return
     }
-  }
 
+    mediaRecorderRef.current = recorder
+    streamRef.current = stream
+
+    if (sessionRef.current !== sessionId) {
+      stream.getTracks().forEach(track => track.stop())
+      mediaRecorderRef.current = null
+      streamRef.current = null
+      return
+    }
+
+    const recognition = new SR()
+    recognition.lang = 'zh-TW'
+    recognition.interimResults = true
+    recognition.continuous = true
+    attachHandlers(recognition)
+
+    if (sessionRef.current !== sessionId) {
+      stream.getTracks().forEach(track => track.stop())
+      mediaRecorderRef.current = null
+      streamRef.current = null
+      return
+    }
+
+    try {
+      recognition.start()
+      setRecog(recognition)
+      setListening(true)
+    } catch (err) {
+      console.error('[speech] recognition start failed', err)
+      setErr(err?.message || '語音辨識啟動失敗')
+      mediaRecorderRef.current = null
+      streamRef.current = null
+      try { recorder.stop() } catch {}
+      stream.getTracks().forEach(track => track.stop())
+      onSpeechBusy?.(false)
+      return
+    }
+
+    try {
+      recorder.start(500)
+    } catch (err) {
+      let fallbackErr = err
+      try {
+        recorder.start()
+      } catch (err2) {
+        fallbackErr = err2
+      }
+      if (fallbackErr) {
+        console.error('[speech] recorder start failed', fallbackErr)
+        setErr(fallbackErr?.message || '無法開始錄音')
+        try { recognition.stop() } catch {}
+        try { recognition.abort() } catch {}
+        mediaRecorderRef.current = null
+        streamRef.current = null
+        stream.getTracks().forEach(track => track.stop())
+        onSpeechBusy?.(false)
+        return
+      }
+    }
+
+    setRecording(true)
+    onSpeechBusy?.(true)
+  }
 
   function stop() {
     sessionRef.current += 1
