@@ -907,15 +907,6 @@ export default function DiaryPage() {
  * 3) 不在錄音結束就打語音情緒 API；只把 Blob 回傳父層，父層在「儲存」時再呼叫 API。
  */
 function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetKey }) {
-  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-  const isiOS = /\b(iPad|iPhone|iPod)\b/i.test(ua)
-  const isSafariEngine =
-    /Safari/i.test(ua) &&
-    !/Chrome|Chromium|CriOS|Edg|OPR|Brave/i.test(ua)
-
-  const hasMediaRecorder = typeof window !== 'undefined' && 'MediaRecorder' in window
-  const canParallelRecord = hasMediaRecorder && !(isiOS && isSafariEngine)
-
   const [recog, setRecog] = useState(null)
   const [listening, setListening] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -934,6 +925,13 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
   const audioUrlRef = useRef('')
   const sessionRef = useRef(0)
   const listeningRef = useRef(false) // 給 onend 自動重啟用
+
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  const isiOS = /\b(iPad|iPhone|iPod)\b/i.test(ua)
+  const isSafariEngine = /Safari/i.test(ua) && !/Chrome|Chromium|CriOS|Edg|OPR|Brave/i.test(ua)
+
+  const hasMediaRecorder = typeof window !== 'undefined' && 'MediaRecorder' in window
+  const canParallelRecord = hasMediaRecorder && !(isiOS && isSafariEngine)
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -975,6 +973,21 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
   }
 
   function attachHandlers(r) {
+    let flushTimer = null
+    const kickFlush = (ms = 1800) => {
+      clearTimeout(flushTimer)
+      flushTimer = setTimeout(() => {
+        try { r.stop() } catch {}
+      }, ms)
+    }
+
+    r.onstart = () => { kickFlush() }
+    r.onaudiostart = () => { console.log('[SR] onaudiostart'); kickFlush() }
+    r.onsoundstart = () => { kickFlush() }
+    r.onspeechstart = () => { kickFlush() }
+    r.onspeechend = () => { kickFlush(800) }
+    r.onaudioend = () => { kickFlush(300) }
+
     r.onresult = (e) => {
       try {
         let interimText = ''
@@ -999,27 +1012,26 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
         const display = `${baseRef.current}${finalRef.current}${interimText}`
         setContent?.(display)
         setInterim(interimText)
+
+        // 每次有結果都重置倒數（避免太快 flush）
+        kickFlush()
       } catch (error) {
         console.error('[voice] onresult error', error)
       }
     }
+
     r.onerror = (e) => {
       const code = e?.error || ''
       if (code !== 'aborted' && code !== 'no-speech') setErr(code || 'speech error')
       // 交由 onend 判斷是否自動重啟
     }
+
     r.onend = () => {
-      // Chrome 會定期 onend；若仍在聆聽狀態，嘗試自動重啟
+      clearTimeout(flushTimer)
+      // 你原本 onend 的內容：
       if (listeningRef.current && mediaRecorderRef.current && streamRef.current) {
-        try {
-          r.start()
-          return
-        } catch {
-          setTimeout(() => { try { r.start() } catch {} }, 200)
-          return
-        }
+        try { r.start(); return } catch { setTimeout(() => { try { r.start() } catch {} }, 200); return }
       }
-      // 使用者已停止
       stopRecorder()
       setListening(false)
       listeningRef.current = false
@@ -1028,11 +1040,6 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
       setRecog(null)
       onSpeechBusy?.(false)
     }
-    r.onaudiostart = () => console.log('[SR] onaudiostart')
-    r.onsoundstart = () => console.log('[SR] onsoundstart')
-    r.onspeechstart = () => console.log('[SR] onspeechstart')
-    r.onspeechend = () => console.log('[SR] onspeechend')
-
   }
 
   async function start() {
