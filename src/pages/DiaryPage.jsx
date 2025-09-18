@@ -908,13 +908,13 @@ export default function DiaryPage() {
  */
 function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetKey }) {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
-  const isIOS = /iP(hone|ad|od)/.test(ua)
-  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|EdgiOS/.test(ua)
+  const isiOS = /\b(iPad|iPhone|iPod)\b/i.test(ua)
+  const isSafariEngine =
+    /Safari/i.test(ua) &&
+    !/Chrome|Chromium|CriOS|Edg|OPR|Brave/i.test(ua)
 
-  // ⚠️ 先強制「不要同時錄音」，只跑語音辨識，確認 onresult 會不會回來
-  const DEBUG_NO_RECORDER = true
-  const canParallelRecord = !!window.MediaRecorder && !DEBUG_NO_RECORDER && !(isIOS && isSafari)
-
+  const hasMediaRecorder = typeof window !== 'undefined' && 'MediaRecorder' in window
+  const canParallelRecord = hasMediaRecorder && !(isiOS && isSafariEngine)
 
   const [recog, setRecog] = useState(null)
   const [listening, setListening] = useState(false)
@@ -1036,6 +1036,14 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
   }
 
   async function start() {
+    console.log('[env]', {
+      ua: navigator.userAgent,
+      hasMediaRecorder,
+      hasSR: !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+      isiOS, isSafariEngine, canParallelRecord,
+      isSecureContext,
+      location: window.location?.origin
+    })
     setErr('')
     if (listening || recording) return
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -1117,8 +1125,13 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
       }}
       setRecording(true)
     } else {
-      // iOS Safari：不開 MediaRecorder，避免 SR 沒有回傳結果
-      console.warn('[speech] iOS Safari 偵測到，僅啟動辨識（情緒改用文字備援）')
+      if (!hasMediaRecorder) {
+        console.warn('[speech] 此環境偵測不到 MediaRecorder，僅啟動語音辨識（情緒改用文字備援）')
+      } else if (isiOS && isSafariEngine) {
+        console.warn('[speech] iOS Safari 偵測到，僅啟動辨識（情緒改用文字備援）')
+      } else {
+        console.warn('[speech] 已停用並行錄音（除錯模式或其他限制），僅啟動辨識')
+      }
     }
 
     // 啟動辨識
