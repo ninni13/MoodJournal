@@ -31,11 +31,9 @@ function formatDisplayDate(dateStr) {
   return norm
 }
 
-// 簡易本地情緒分析（可替換為真實 API）
-function analyzeSentiment(text) {
+// ===== 本地簡易情緒，僅作備援（API 壞掉時）
+function analyzeSentimentLocal(text) {
   const s = String(text || '')
-
-  // 關鍵詞字典（可再擴充）
   const positiveWords = ['開心', '快樂', '愉悅', '幸福', '讚', '爽', '好吃', '好玩', '愛']
   const negativeWords = ['累', '難過', '生氣', '煩', '壓力', '痛苦', '失望', '不喜歡']
 
@@ -49,18 +47,10 @@ function analyzeSentiment(text) {
   if (raw > 0) label = 'positive'
   else if (raw < 0) label = 'negative'
 
-  // 分數規則：
-  // - 正向：>= 0.7（起始 0.8）
-  // - 中立：= 0.5
-  // - 負向：<= 0.3（起始 0.2）
   let score
-  if (label === 'positive') {
-    score = Math.min(1, 0.8 + Math.max(0, posHits - 1) * 0.05)
-  } else if (label === 'negative') {
-    score = Math.max(0, 0.2 - Math.max(0, negHits - 1) * 0.05)
-  } else {
-    score = 0.5
-  }
+  if (label === 'positive') score = Math.min(1, 0.8 + Math.max(0, posHits - 1) * 0.05)
+  else if (label === 'negative') score = Math.max(0, 0.2 - Math.max(0, negHits - 1) * 0.05)
+  else score = 0.5
 
   return { label, score }
 }
@@ -76,13 +66,9 @@ function sentimentView(sentiment) {
   }
   const m = map[label] || map.neutral
 
-  // 標題包含信心
   let title = label
   if (confidence !== undefined) title += ` (信心: ${(confidence * 100).toFixed(1)}%)`
-
-  // 信心對應飽和度（0.3~1.0），避免過淡
   const confForCss = confidence !== undefined ? Math.max(0.3, Math.min(1, confidence)).toFixed(2) : undefined
-
   const showKw = label === 'positive' || label === 'negative'
 
   return (
@@ -138,7 +124,7 @@ function uuid() {
   })
 }
 
-// 簡易 AES：以目前使用者 uid 當 key（僅示範；正式環境建議另行管理）
+// ===== 簡易 AES：以使用者 uid 當 key（示範用）
 function encryptText(plain, key) {
   try {
     return CryptoJS.AES.encrypt(String(plain), String(key)).toString()
@@ -156,23 +142,18 @@ function decryptText(cipher, key) {
   }
 }
 
-// 走遠端 API；回傳 { label, score, confidence, topTokens }
+// ===== 呼叫文字情緒 API，回傳 {label(score壓0~1), confidence, topTokens...}
 async function analyzeSentimentViaApi(text) {
   try {
     const r = await inferSentiment(text)
-    if (!r.ok) {
-      throw new Error('API response not ok')
-    }
+    if (!r?.ok) throw new Error('API not ok')
     const labelMap = { pos: 'positive', neu: 'neutral', neg: 'negative' }
     const mappedLabel = labelMap[r.label] || 'neutral'
-
     let score = 0.5
     if (r.probs && typeof r.probs === 'object') {
       const { neg, neu, pos } = r.probs
-      // 以機率轉換為 0-1 分數：負向=0、中立=0.5、正向=1
-      score = pos + (neu * 0.5)
+      score = (pos ?? 0) + (neu ?? 0) * 0.5 // pos=1, neu=0.5, neg=0
     }
-
     return {
       label: mappedLabel,
       score,
@@ -182,9 +163,19 @@ async function analyzeSentimentViaApi(text) {
       version: r.version
     }
   } catch (e) {
-    console.warn('API sentiment analysis failed, falling back to local:', e)
-    return analyzeSentiment(text)
+    console.warn('[sentiment API] fallback to local:', e?.message)
+    return analyzeSentimentLocal(text)
   }
+}
+
+// ===== 把語音多類標籤壓成三類（依你的語音模型調整）
+function triMapFromSpeechLabel(label) {
+  const L = String(label || '').toLowerCase()
+  const POS = new Set(['happy', 'joy', 'calm', 'positive', 'surprise'])
+  const NEG = new Set(['angry', 'anger', 'sad', 'fear', 'disgust', 'negative'])
+  if (POS.has(L)) return 'positive'
+  if (NEG.has(L)) return 'negative'
+  return 'neutral'
 }
 
 export default function DiaryPage() {
@@ -200,8 +191,6 @@ export default function DiaryPage() {
   const [pendingCount, setPendingCount] = useState(0)
   // 搜尋與日期篩選
   const [searchQuery, setSearchQuery] = useState('')
-  const today = new Date()
-  // 預設為「全部」，避免本月以外資料被隱藏
   const [quickPreset, setQuickPreset] = useState('all') // 'all' | 'thisMonth' | 'lastMonth' | 'custom'
   const [startDate, setStartDate] = useState(null)
   const [endDate, setEndDate] = useState(null)
@@ -209,8 +198,9 @@ export default function DiaryPage() {
   const [tab, setTab] = useState('line')   // 'line' | 'heat'
   const [range, setRange] = useState('week') // 'week' | 'month'
   const [selectedDay, setSelectedDay] = useState(null) // 'YYYY-MM-DD'
-  // 語音情緒
-  const [speechEmotion, setSpeechEmotion] = useState(null)
+  // 語音：我們改成「儲存時才打語音情緒 API」，故保留 blob 在父層
+  const [speechBlob, setSpeechBlob] = useState(null)        // <-- 錄音檔
+  const [speechMime, setSpeechMime] = useState('')          // <-- mime
   const [speechBusy, setSpeechBusy] = useState(false)
   const [speechResetKey, setSpeechResetKey] = useState(0)
 
@@ -220,16 +210,15 @@ export default function DiaryPage() {
   }, [currentUser])
 
   const refresh = useCallback(async () => {
-    if (!baseCol) return
+    if (!baseCol || !currentUser) return
     setLoading(true)
     setError('')
     try {
-      // 以日期排序；篩選在客端做
       const q1 = query(baseCol, orderBy('date', 'desc'))
       const snap1 = await getDocs(q1)
       const diaries = snap1.docs.map(d => ({ id: d.id, ...d.data() }))
 
-      // 向後相容：讀舊的 collection `diary`
+      // 兼容舊 collection: users/uid/diary
       let oldOnes = []
       try {
         const oldCol = collection(db, 'users', currentUser.uid, 'diary')
@@ -237,10 +226,10 @@ export default function DiaryPage() {
         const snap2 = await getDocs(q2)
         oldOnes = snap2.docs.map(d => ({ id: d.id, ...d.data(), __legacy: true }))
       } catch (err) {
-        console.warn('[migrate] skip legacy read due to permission:', err?.code || err?.message)
+        console.warn('[migrate] legacy read skipped:', err?.code || err?.message)
       }
 
-      // 誤存 users/uid/diaries（字串 "uid"）的位置
+      // 防呆：有人誤存到 users/uid/diaries（字串 "uid"）
       let wrongUidOnes = []
       try {
         const wrongUidCol = collection(db, 'users', 'uid', 'diaries')
@@ -248,21 +237,15 @@ export default function DiaryPage() {
         const snap3 = await getDocs(q3)
         wrongUidOnes = snap3.docs.map(d => ({ id: d.id, ...d.data(), __wrongUid: true }))
       } catch (err) {
-        console.warn('[migrate] skip users/uid/diaries due to permission:', err?.code || err?.message)
+        console.warn('[migrate] users/uid/diaries skipped:', err?.code || err?.message)
       }
 
-      // 正規化與修補 sentiment 欄位
       const patchList = []
       const normalizedNew = diaries.map(e => {
-        // 先取可用明文，再依明文分析情緒
         let plain = null
-        if (e.contentEnc) {
-          plain = currentUser ? decryptText(e.contentEnc, currentUser.uid) : null
-        }
-        if (!plain && typeof e.content === 'string') {
-          plain = String(e.content)
-        }
-        let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : analyzeSentiment(plain)
+        if (e.contentEnc) plain = currentUser ? decryptText(e.contentEnc, currentUser.uid) : null
+        if (!plain && typeof e.content === 'string') plain = String(e.content)
+        let sentiment = e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : analyzeSentimentLocal(plain)
         if (!e.sentiment || typeof e.sentiment !== 'object') {
           patchList.push({ id: e.id, sentiment })
         }
@@ -285,17 +268,16 @@ export default function DiaryPage() {
           content: String(e.content ?? ''),
           isDeleted: Boolean(e.isDeleted),
           updatedAt: e.updatedAt || new Date().toISOString(),
-          sentiment: e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : analyzeSentiment(e.content),
+          sentiment: e.sentiment && typeof e.sentiment === 'object' ? e.sentiment : analyzeSentimentLocal(e.content),
         }
         if (!newIds.has(norm.id)) {
           try {
-            // 寫入新的 collection
             const contentEnc = currentUser ? encryptText(norm.content, currentUser.uid) : null
             const { content, ...rest } = norm
             await setDoc(doc(baseCol, norm.id), { ...rest, contentEnc })
             toMigrate.push(norm)
           } catch (err) {
-            console.warn('[migrate] failed to write migrated doc:', err?.code || err?.message)
+            console.warn('[migrate] write failed:', err?.code || err?.message)
           }
         }
       }
@@ -306,7 +288,6 @@ export default function DiaryPage() {
 
       setEntries(merged)
 
-      // 背景修補：把不一致的 sentiment 分數寫回 Firestore
       if (patchList.length) {
         try {
           for (const p of patchList) {
@@ -326,7 +307,7 @@ export default function DiaryPage() {
 
   useEffect(() => { refresh() }, [refresh])
 
-  // 離線時顯示 IndexedDB 待同步資料
+  // 離線：把 IndexedDB 待同步資料拉進列表
   useEffect(() => {
     async function loadPendingIntoList() {
       if (!isOffline || !currentUser) return
@@ -351,7 +332,7 @@ export default function DiaryPage() {
     loadPendingIntoList()
   }, [isOffline, currentUser])
 
-  // 線上/離線偵測與自動同步
+  // 線上/離線偵測 + 自動同步
   useEffect(() => {
     function handleOffline() { setIsOffline(true) }
     async function handleOnline() {
@@ -392,9 +373,7 @@ export default function DiaryPage() {
         console.error('[sync] 同步失敗', err)
         setSyncStatus('同步失敗，稍後自動重試')
         setTimeout(() => {
-          if (navigator.onLine) {
-            handleOnline()
-          }
+          if (navigator.onLine) handleOnline()
         }, 5000)
         setTimeout(() => setSyncStatus(''), 4000)
       }
@@ -414,10 +393,27 @@ export default function DiaryPage() {
     if (!text || !baseCol) return
     try {
       const id = uuid()
-      let s = speechEmotion
-      if (!s) {
+
+      // === 關鍵：按下「儲存」時才呼叫語音情緒 API（若有音檔）
+      let s
+      if (speechBlob && speechBlob.size > 0) {
+        try {
+          const resp = await inferSpeechEmotion(speechBlob) // 你自己的語音情緒 API
+          // resp 結構假設：{ pred: 'happy', probs: {happy:0.9,...} }
+          const probs = resp?.probs && typeof resp.probs === 'object' ? resp.probs : {}
+          const pred = resp?.pred || Object.entries(probs).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'neutral'
+          const tri = triMapFromSpeechLabel(pred)
+          const conf = typeof probs[pred] === 'number' ? Math.max(0, Math.min(1, probs[pred])) : 0.5
+          s = { label: tri, score: conf, confidence: conf, source: 'speech', probs }
+        } catch (err) {
+          console.warn('[speech infer on save] failed, fallback text:', err?.message)
+          s = await analyzeSentimentViaApi(text) // 文字備援
+        }
+      } else {
+        // 沒音檔就用文字情緒
         s = await analyzeSentimentViaApi(text)
       }
+
       const newData = {
         id,
         date: todayKey(),
@@ -425,8 +421,8 @@ export default function DiaryPage() {
         updatedAt: new Date().toISOString(),
         sentiment: s,
       }
+
       if (isOffline) {
-        // 先存 IndexedDB 並反映在 UI
         await addPending({ ...newData, content: text, isSynced: false })
         setEntries(prev => [{ id, ...newData, content: text, localPending: true }, ...prev])
       } else {
@@ -435,9 +431,12 @@ export default function DiaryPage() {
         await setDoc(ref, { ...newData, contentEnc })
         setEntries(prev => [{ id, ...newData, content: text }, ...prev])
       }
+
+      // 清理輸入與語音狀態
       setContent('')
-      setSpeechEmotion(null)
-      setSpeechResetKey(key => key + 1)
+      setSpeechBlob(null)
+      setSpeechMime('')
+      setSpeechResetKey(k => k + 1)
     } catch (e) {
       console.error(e)
       setError(e?.message || '存檔失敗')
@@ -465,7 +464,7 @@ export default function DiaryPage() {
       setStartDate(startOfMonth(lm))
       setEndDate(endOfMonth(lm))
     } else {
-      // custom: 保持現有範圍
+      // custom
     }
   }
 
@@ -500,12 +499,10 @@ export default function DiaryPage() {
     return searchQuery.trim() !== '' || quickPreset !== 'all'
   }, [searchQuery, quickPreset])
 
-  // ===== Insights: 折線圖資料 =====
+  // ===== Insights: 折線圖 =====
   const lineData = useMemo(() => {
     const now = new Date()
     const days = range === 'week' ? 7 : 30
-
-    // 以最新日記日期當尾端，確保未來日期（手動編輯）也能出現
     let latest = new Date(0)
     for (const it of sortedFiltered) {
       const d = parseISO(it.date)
@@ -534,7 +531,7 @@ export default function DiaryPage() {
     })
   }, [entries, range])
 
-  // ===== Insights: 月曆熱力圖資料 =====
+  // ===== Insights: 月曆熱圖 =====
   const monthHeat = useMemo(() => {
     const base = endDate || new Date()
     const start = startOfMonth(base)
@@ -571,6 +568,7 @@ export default function DiaryPage() {
     const text = String(editingText).trim()
     if (!text) return
     try {
+      // 編輯時以文字情緒為準（也可加：若當日有 speechBlob 則優先）
       const sentiment = await analyzeSentimentViaApi(text)
       const contentEnc = encryptText(text, currentUser.uid)
       await updateDoc(doc(baseCol, id), {
@@ -681,8 +679,8 @@ export default function DiaryPage() {
             <VoiceInput
               getContent={() => content}
               setContent={setContent}
-              onSpeechEmotion={setSpeechEmotion}
               onSpeechBusy={setSpeechBusy}
+              onSpeechBlob={(blob, mime) => { setSpeechBlob(blob || null); setSpeechMime(mime || '') }}
               resetKey={speechResetKey}
             />
           </div>
@@ -768,7 +766,6 @@ export default function DiaryPage() {
                       tickMargin={12}
                     />
                     <YAxis domain={[0, 1]} tickCount={6} />
-                    {/* 區帶：負/中/正 */}
                     <ReferenceArea y1={0} y2={0.3} fill="#fee2e2" fillOpacity={0.6} strokeOpacity={0} />
                     <ReferenceArea y1={0.3} y2={0.7} fill="#f3f4f6" fillOpacity={0.6} strokeOpacity={0} />
                     <ReferenceArea y1={0.7} y2={1} fill="#dcfce7" fillOpacity={0.6} strokeOpacity={0} />
@@ -902,7 +899,14 @@ export default function DiaryPage() {
   )
 }
 
-function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, resetKey }) {
+/**
+ * 語音輸入元件（即時轉文字；錄音結束後回傳 Blob）
+ * 變更重點：
+ * 1) 先 getUserMedia 啟動 MediaRecorder，再啟動 SpeechRecognition（避免音源互搶）。
+ * 2) recognition.onend 自動重啟，確保 Chrome 不會 5~15 秒就停止影響即時文字。
+ * 3) 不在錄音結束就打語音情緒 API；只把 Blob 回傳父層，父層在「儲存」時再呼叫 API。
+ */
+function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetKey }) {
   const [recog, setRecog] = useState(null)
   const [listening, setListening] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -920,6 +924,7 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
   const chunksRef = useRef([])
   const audioUrlRef = useRef('')
   const sessionRef = useRef(0)
+  const listeningRef = useRef(false) // 給 onend 自動重啟用
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -938,10 +943,10 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     if (resetKey == null) return
     stop()
     clearAudio()
-    onSpeechEmotion?.(null)
     chunksRef.current = []
     setErr('')
     setInterim('')
+    onSpeechBlob?.(null, '')
   }, [resetKey])
 
   function clearAudio() {
@@ -957,27 +962,6 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     const recorder = mediaRecorderRef.current
     if (recorder && recorder.state !== 'inactive') {
       try { recorder.stop() } catch {}
-    }
-  }
-
-  function mapSpeechEmotion(resp) {
-    const probs = resp?.probs && typeof resp.probs === 'object' ? resp.probs : {}
-    let label = resp?.pred || 'neutral'
-    let score = typeof probs[label] === 'number' ? probs[label] : undefined
-    const entries = Object.entries(probs)
-    if (score == null && entries.length) {
-      const [bestLabel, bestScore] = entries.reduce((acc, cur) => (cur[1] > acc[1] ? cur : acc))
-      label = bestLabel
-      score = bestScore
-    }
-    if (typeof score !== 'number') score = 0.5
-    score = Math.max(0, Math.min(1, score))
-    return {
-      label,
-      score,
-      confidence: score,
-      probs,
-      source: 'speech'
     }
   }
 
@@ -1004,7 +988,7 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
 
         if (newFinal) finalRef.current += newFinal
         const display = `${baseRef.current}${finalRef.current}${interimText}`
-        if (setContent) setContent(display)
+        setContent?.(display)
         setInterim(interimText)
       } catch (error) {
         console.error('[voice] onresult error', error)
@@ -1013,16 +997,27 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     r.onerror = (e) => {
       const code = e?.error || ''
       if (code !== 'aborted' && code !== 'no-speech') setErr(code || 'speech error')
-      stopRecorder()
-      setListening(false)
-      setInterim('')
+      // 交由 onend 判斷是否自動重啟
     }
     r.onend = () => {
+      // Chrome 會定期 onend；若仍在聆聽狀態，嘗試自動重啟
+      if (listeningRef.current && mediaRecorderRef.current && streamRef.current) {
+        try {
+          r.start()
+          return
+        } catch {
+          setTimeout(() => { try { r.start() } catch {} }, 200)
+          return
+        }
+      }
+      // 使用者已停止
       stopRecorder()
       setListening(false)
-      if (setContent) setContent(`${baseRef.current}${finalRef.current}`)
+      listeningRef.current = false
+      setContent?.(`${baseRef.current}${finalRef.current}`)
       setInterim('')
       setRecog(null)
+      onSpeechBusy?.(false)
     }
   }
 
@@ -1040,11 +1035,11 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
       return
     }
 
-    onSpeechEmotion?.(null)
+    onSpeechBusy?.(true)
     clearAudio()
+    onSpeechBlob?.(null, '')
 
-    const sessionId = sessionRef.current + 1
-    sessionRef.current = sessionId
+    const sessionId = ++sessionRef.current
 
     baseRef.current = getContent ? (getContent() || '') : ''
     if (baseRef.current && !(baseRef.current.endsWith('\n') || baseRef.current.endsWith(' '))) baseRef.current += ' '
@@ -1052,46 +1047,20 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     setInterim('')
     lastAppendAtRef.current = Date.now()
 
-    const recognition = new SR()
-    recognition.lang = 'zh-TW'
-    recognition.interimResults = true
-    recognition.continuous = true
-    attachHandlers(recognition)
-
-    const streamPromise = navigator.mediaDevices.getUserMedia({ audio: true })
-
-    try {
-      recognition.start()
-      setRecog(recognition)
-      setListening(true)
-    } catch (err) {
-      console.error('[speech] recognition start failed', err)
-      setErr(err?.message || '語音辨識啟動失敗')
-      onSpeechBusy?.(false)
-      streamPromise.then(stream => {
-        stream.getTracks().forEach(track => track.stop())
-      }).catch(() => {})
-      return
-    }
-
+    // 1) 先拿到麥克風並啟動錄音（避免音源互搶）
     let stream
     try {
-      stream = await streamPromise
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
     } catch (err) {
       console.error('[speech] getUserMedia failed', err)
-      setErr(err?.message || '無法開始錄音')
-      try { recognition.stop() } catch {}
-      try { recognition.abort() } catch {}
-      setListening(false)
-      setRecog(null)
+      setErr(err?.message || '無法開始錄音（請檢查麥克風權限）')
       onSpeechBusy?.(false)
       return
     }
 
     if (sessionRef.current !== sessionId) {
-      try { recognition.stop() } catch {}
-      try { recognition.abort() } catch {}
-      stream.getTracks().forEach(track => track.stop())
+      stream.getTracks().forEach(t => t.stop())
+      onSpeechBusy?.(false)
       return
     }
 
@@ -1111,18 +1080,13 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
         }
         const mime = (recorder.mimeType && recorder.mimeType.startsWith('audio/')) ? recorder.mimeType : 'audio/webm;codecs=opus'
         const blob = new Blob(chunksRef.current, { type: mime })
-        console.log('[speech] recorder stopped', { mimeType: recorder.mimeType, usedMime: mime, size: blob.size })
         chunksRef.current = []
-        handleBlob(blob, mime)
+        handleBlob(blob, mime) // 僅回傳 Blob，父層按「儲存」時才打 API
       }
     } catch (err) {
       console.error('[speech] recorder init failed', err)
       setErr(err?.message || '無法開始錄音')
-      try { recognition.stop() } catch {}
-      try { recognition.abort() } catch {}
-      stream.getTracks().forEach(track => track.stop())
-      setListening(false)
-      setRecog(null)
+      stream.getTracks().forEach(t => t.stop())
       onSpeechBusy?.(false)
       return
     }
@@ -1130,45 +1094,48 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     mediaRecorderRef.current = recorder
     streamRef.current = stream
 
-    if (sessionRef.current !== sessionId) {
-      try { recognition.stop() } catch {}
-      try { recognition.abort() } catch {}
-      stream.getTracks().forEach(track => track.stop())
-      mediaRecorderRef.current = null
-      streamRef.current = null
-      return
-    }
-
     try {
       recorder.start(500)
-    } catch (err) {
-      let fallbackErr = err
-      try {
-        recorder.start()
-      } catch (err2) {
-        fallbackErr = err2
-      }
-      if (fallbackErr) {
-        console.error('[speech] recorder start failed', fallbackErr)
-        setErr(fallbackErr?.message || '無法開始錄音')
-        try { recognition.stop() } catch {}
-        try { recognition.abort() } catch {}
-        stream.getTracks().forEach(track => track.stop())
+    } catch {
+      try { recorder.start() } catch (err2) {
+        console.error('[speech] recorder start failed', err2)
+        setErr(err2?.message || '無法開始錄音')
+        stream.getTracks().forEach(t => t.stop())
         mediaRecorderRef.current = null
         streamRef.current = null
-        setListening(false)
-        setRecog(null)
         onSpeechBusy?.(false)
         return
       }
     }
-
     setRecording(true)
-    onSpeechBusy?.(true)
+
+    // 2) 再啟動辨識（避免互搶）
+    const recognition = new SR()
+    recognition.lang = 'zh-TW'
+    recognition.interimResults = true
+    recognition.continuous = true
+    attachHandlers(recognition)
+
+    try {
+      recognition.start()
+      setRecog(recognition)
+      setListening(true)
+      listeningRef.current = true
+    } catch (err) {
+      console.error('[speech] recognition start failed', err)
+      setErr(err?.message || '語音辨識啟動失敗')
+      try { mediaRecorderRef.current?.stop() } catch {}
+      streamRef.current?.getTracks?.().forEach(t => t.stop())
+      mediaRecorderRef.current = null
+      streamRef.current = null
+      onSpeechBusy?.(false)
+      return
+    }
   }
 
   function stop() {
     sessionRef.current += 1
+    listeningRef.current = false
     const r = recog
     if (r) {
       try { r.stop() } catch {}
@@ -1178,31 +1145,29 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
     setRecording(false)
     setListening(false)
     setInterim('')
+    onSpeechBusy?.(false)
   }
 
   async function handleBlob(blob, mimeUsed = 'audio/webm;codecs=opus') {
     try {
       clearAudio()
       if (!blob || !blob.size) {
-        console.warn('[speech] empty blob, skip playback/inference')
+        console.warn('[speech] empty blob')
         setErr('錄音內容為空，請再試一次')
-        onSpeechBusy?.(false)
+        onSpeechBlob?.(null, '')
         return
       }
       const url = URL.createObjectURL(blob)
       audioUrlRef.current = url
       setAudioUrl(url)
       setAudioMime(mimeUsed || 'audio/webm;codecs=opus')
-      const resp = await inferSpeechEmotion(blob)
-      const mapped = mapSpeechEmotion(resp)
-      onSpeechEmotion?.(mapped)
+      // 僅把 Blob 交給父層；不在這裡呼叫情緒 API
+      onSpeechBlob?.(blob, mimeUsed || 'audio/webm;codecs=opus')
       setErr('')
     } catch (err) {
-      console.error('[speech] infer failed', err)
-      setErr(err?.message || '語音情緒辨識失敗')
-      onSpeechEmotion?.(null)
-    } finally {
-      onSpeechBusy?.(false)
+      console.error('[speech] handleBlob failed', err)
+      setErr(err?.message || '語音處理失敗')
+      onSpeechBlob?.(null, '')
     }
   }
 
@@ -1225,60 +1190,4 @@ function VoiceInput({ getContent, setContent, onSpeechEmotion, onSpeechBusy, res
       {err && <span style={{ fontSize: 12, color: 'crimson' }}>{err}</span>}
     </div>
   )
-}
-
-function normalizeDate(input) {
-  try {
-    // Firestore Timestamp
-    if (input && typeof input === 'object') {
-      if (typeof input.toDate === 'function') {
-        const d = input.toDate()
-        return format(d, 'yyyy-MM-dd')
-      }
-      // Date instance
-      if (input instanceof Date && !isNaN(input)) {
-        return format(input, 'yyyy-MM-dd')
-      }
-    }
-    // String forms
-    const s = String(input || '').trim()
-    if (!s) return todayKey()
-    // 去非數字並以 '-' 連接
-    const parts = s.replace(/[^0-9]+/g, '-').split('-').filter(Boolean)
-    const now = new Date()
-    let y, m, d
-    if (parts.length === 3) {
-      // yyyy-mm-dd 或 mm-dd-yy
-      if (parts[0].length === 4) {
-        y = Number(parts[0])
-        m = Number(parts[1])
-        d = Number(parts[2])
-      } else {
-        // 假設 mm-dd-(yy)yy；yy 用 2000 世紀補
-        y = Number(parts[2])
-        if (y < 100) y = 2000 + y
-        m = Number(parts[0])
-        d = Number(parts[1])
-      }
-    } else if (parts.length === 2) {
-      // mm-dd，年用當年
-      y = now.getFullYear()
-      m = Number(parts[0])
-      d = Number(parts[1])
-    } else if (parts.length === 1 && parts[0].length >= 8) {
-      // yyyymmdd
-      const str = parts[0]
-      y = Number(str.slice(0, 4))
-      m = Number(str.slice(4, 6))
-      d = Number(str.slice(6, 8))
-    } else {
-      return todayKey()
-    }
-    if (!y || !m || !d) return todayKey()
-    const mm = String(Math.max(1, Math.min(12, m))).padStart(2, '0')
-    const dd = String(Math.max(1, Math.min(31, d))).padStart(2, '0')
-    return `${y}-${mm}-${dd}`
-  } catch {
-    return todayKey()
-  }
 }
