@@ -907,6 +907,15 @@ export default function DiaryPage() {
  * 3) 不在錄音結束就打語音情緒 API；只把 Blob 回傳父層，父層在「儲存」時再呼叫 API。
  */
 function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetKey }) {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  const isIOS = /iP(hone|ad|od)/.test(ua)
+  const isSafari = /Safari/.test(ua) && !/Chrome|CriOS|EdgiOS/.test(ua)
+
+  // ⚠️ 先強制「不要同時錄音」，只跑語音辨識，確認 onresult 會不會回來
+  const DEBUG_NO_RECORDER = true
+  const canParallelRecord = !!window.MediaRecorder && !DEBUG_NO_RECORDER && !(isIOS && isSafari)
+
+
   const [recog, setRecog] = useState(null)
   const [listening, setListening] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -1019,6 +1028,11 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
       setRecog(null)
       onSpeechBusy?.(false)
     }
+    r.onaudiostart = () => console.log('[SR] onaudiostart')
+    r.onsoundstart = () => console.log('[SR] onsoundstart')
+    r.onspeechstart = () => console.log('[SR] onspeechstart')
+    r.onspeechend = () => console.log('[SR] onspeechend')
+
   }
 
   async function start() {
@@ -1047,57 +1061,52 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
     setInterim('')
     lastAppendAtRef.current = Date.now()
 
-    // 1) 先拿到麥克風並啟動錄音（避免音源互搶）
-    let stream
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
-    } catch (err) {
-      console.error('[speech] getUserMedia failed', err)
-      setErr(err?.message || '無法開始錄音（請檢查麥克風權限）')
-      onSpeechBusy?.(false)
-      return
-    }
-
-    if (sessionRef.current !== sessionId) {
-      stream.getTracks().forEach(t => t.stop())
-      onSpeechBusy?.(false)
-      return
-    }
-
-    let recorder
-    try {
-      recorder = new MediaRecorder(stream)
-      chunksRef.current = []
-      recorder.ondataavailable = (evt) => {
-        if (evt.data && evt.data.size > 0) chunksRef.current.push(evt.data)
+    // 依平台：iOS Safari 不同時錄音，避免 onresult 不回來
+    if (canParallelRecord) {
+      // === 原本的「先 getUserMedia 再開 recognition」流程 ===
+      let stream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      } catch (err) {
+        console.error('[speech] getUserMedia failed', err)
+        setErr(err?.message || '無法開始錄音（請檢查麥克風權限）')
+        onSpeechBusy?.(false)
+        return
       }
-      recorder.onstop = () => {
-        mediaRecorderRef.current = null
-        setRecording(false)
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop())
-          streamRef.current = null
-        }
-        const mime = (recorder.mimeType && recorder.mimeType.startsWith('audio/')) ? recorder.mimeType : 'audio/webm;codecs=opus'
-        const blob = new Blob(chunksRef.current, { type: mime })
+      if (sessionRef.current !== sessionId) {
+        stream.getTracks().forEach(t => t.stop())
+        onSpeechBusy?.(false)
+        return
+      }
+
+      let recorder
+      try {
+        recorder = new MediaRecorder(stream)
         chunksRef.current = []
-        handleBlob(blob, mime) // 僅回傳 Blob，父層按「儲存」時才打 API
+        recorder.ondataavailable = (evt) => { if (evt.data && evt.data.size > 0) chunksRef.current.push(evt.data) }
+        recorder.onstop = () => {
+          mediaRecorderRef.current = null
+          setRecording(false)
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop())
+            streamRef.current = null
+          }
+          const mime = (recorder.mimeType && recorder.mimeType.startsWith('audio/')) ? recorder.mimeType : 'audio/webm;codecs=opus'
+          const blob = new Blob(chunksRef.current, { type: mime })
+          chunksRef.current = []
+          handleBlob(blob, mime)
+        }
+      } catch (err) {
+        console.error('[speech] recorder init failed', err)
+        setErr(err?.message || '無法開始錄音')
+        stream.getTracks().forEach(t => t.stop())
+        onSpeechBusy?.(false)
+        return
       }
-    } catch (err) {
-      console.error('[speech] recorder init failed', err)
-      setErr(err?.message || '無法開始錄音')
-      stream.getTracks().forEach(t => t.stop())
-      onSpeechBusy?.(false)
-      return
-    }
 
-    mediaRecorderRef.current = recorder
-    streamRef.current = stream
-
-    try {
-      recorder.start(500)
-    } catch {
-      try { recorder.start() } catch (err2) {
+      mediaRecorderRef.current = recorder
+      streamRef.current = stream
+      try { recorder.start(500) } catch { try { recorder.start() } catch (err2) {
         console.error('[speech] recorder start failed', err2)
         setErr(err2?.message || '無法開始錄音')
         stream.getTracks().forEach(t => t.stop())
@@ -1105,11 +1114,14 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
         streamRef.current = null
         onSpeechBusy?.(false)
         return
-      }
+      }}
+      setRecording(true)
+    } else {
+      // iOS Safari：不開 MediaRecorder，避免 SR 沒有回傳結果
+      console.warn('[speech] iOS Safari 偵測到，僅啟動辨識（情緒改用文字備援）')
     }
-    setRecording(true)
 
-    // 2) 再啟動辨識（避免互搶）
+    // 啟動辨識
     const recognition = new SR()
     recognition.lang = 'zh-TW'
     recognition.interimResults = true
@@ -1132,6 +1144,7 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
       return
     }
   }
+
 
   function stop() {
     sessionRef.current += 1
@@ -1161,15 +1174,16 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
       audioUrlRef.current = url
       setAudioUrl(url)
       setAudioMime(mimeUsed || 'audio/webm;codecs=opus')
-      // 僅把 Blob 交給父層；不在這裡呼叫情緒 API
       onSpeechBlob?.(blob, mimeUsed || 'audio/webm;codecs=opus')
       setErr('')
+      console.log('[speech] blob ready:', mimeUsed, blob.size, 'bytes')
     } catch (err) {
       console.error('[speech] handleBlob failed', err)
       setErr(err?.message || '語音處理失敗')
       onSpeechBlob?.(null, '')
     }
   }
+
 
   if (!supported) {
     return <span style={{ fontSize: 12, color: '#9ca3af' }}>瀏覽器不支援語音輸入</span>
