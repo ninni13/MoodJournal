@@ -1191,3 +1191,50 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
     </div>
   )
 }
+function normalizeDate(input) {
+  try {
+    if (input && typeof input === 'object') {
+      if (typeof input.toDate === 'function') {
+        const d = input.toDate()
+        return format(d, 'yyyy-MM-dd')
+      }
+      if (input instanceof Date && !Number.isNaN(input)) {
+        return format(input, 'yyyy-MM-dd')
+      }
+    }
+    const s = String(input || '').trim()
+    if (!s) return todayKey()
+    const parts = s.replace(/[^0-9]+/g, '-').split('-').filter(Boolean)
+    const now = new Date()
+    let y, m, d
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        y = Number(parts[0])
+        m = Number(parts[1])
+        d = Number(parts[2])
+      } else {
+        y = Number(parts[2])
+        if (y < 100) y = 2000 + y
+        m = Number(parts[0])
+        d = Number(parts[1])
+      }
+    } else if (parts.length === 2) {
+      y = now.getFullYear()
+      m = Number(parts[0])
+      d = Number(parts[1])
+    } else if (parts.length === 1 && parts[0].length >= 8) {
+      const str = parts[0]
+      y = Number(str.slice(0, 4))
+      m = Number(str.slice(4, 6))
+      d = Number(str.slice(6, 8))
+    } else {
+      return todayKey()
+    }
+    if (!y || !m || !d) return todayKey()
+    const mm = String(Math.max(1, Math.min(12, m))).padStart(2, '0')
+    const dd = String(Math.max(1, Math.min(31, d))).padStart(2, '0')
+    return `${y}-${mm}-${dd}`
+  } catch {
+    return todayKey()
+  }
+}
