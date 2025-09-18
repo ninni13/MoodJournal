@@ -926,6 +926,7 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [audioUrl, setAudioUrl] = useState('')
+  const [audioMime, setAudioMime] = useState('')
 
   const mediaRecorderRef = useRef(null)
   const streamRef = useRef(null)
@@ -960,6 +961,7 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl)
       setAudioUrl('')
+      setAudioMime('')
     }
     chunksRef.current = []
     if (mediaRecorderRef.current) {
@@ -997,7 +999,7 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
         const blob = new Blob(chunksRef.current, { type: mime })
         console.log('[speech] recorder stopped', { mimeType: recorder.mimeType, usedMime: mime, size: blob.size })
         chunksRef.current = []
-        handleBlob(blob)
+        handleBlob(blob, mime)
       }
       mediaRecorderRef.current = recorder
       streamRef.current = stream
@@ -1031,6 +1033,7 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl)
       setAudioUrl('')
+      setAudioMime('')
     }
     setError('')
     setLoading(false)
@@ -1039,11 +1042,12 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
     onBusyChange?.(false)
   }
 
-  async function handleBlob(blob) {
+  async function handleBlob(blob, mimeUsed = 'audio/webm;codecs=opus') {
     try {
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl)
         setAudioUrl('')
+        setAudioMime('')
       }
       if (!blob || !blob.size) {
         console.warn('[speech] empty blob, skip playback/inference')
@@ -1053,6 +1057,7 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
       }
       const url = URL.createObjectURL(blob)
       setAudioUrl(url)
+      setAudioMime(mimeUsed || 'audio/webm;codecs=opus')
       setLoading(true)
       const resp = await inferSpeechEmotion(blob)
       const mapped = mapSpeechEmotion(resp)
@@ -1110,7 +1115,10 @@ function SpeechEmotionRecorder({ onEmotion, onBusyChange, resetKey }) {
       {loading && <span style={{ fontSize: 12, color: '#9ca3af' }}>分析中…</span>}
       {recording && !loading && <span style={{ fontSize: 12, color: '#9ca3af' }}>錄音中</span>}
       {audioUrl && !recording && (
-        <audio src={audioUrl} controls style={{ height: 32 }} />
+        <audio key={audioUrl} controls style={{ height: 32 }} preload="auto">
+          <source src={audioUrl} type={audioMime || 'audio/webm;codecs=opus'} />
+          ??????????????
+        </audio>
       )}
       {error && <span style={{ fontSize: 12, color: 'crimson' }}>{error}</span>}
     </div>
