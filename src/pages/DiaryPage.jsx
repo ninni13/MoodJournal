@@ -6,9 +6,8 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter,
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea, ReferenceLine } from 'recharts'
 import { useAuth } from '../state/AuthContext.jsx'
 import { db, logout } from '../lib/firebase.js'
-import { inferSentiment } from '../lib/sentiment'
-import { inferSpeechEmotion } from '../lib/speech'
-import { addDoc, collection, doc, getDocs, getDoc, orderBy, query, updateDoc, where, setDoc } from 'firebase/firestore'
+import { predictFusion } from '../lib/fusion'
+import { collection, doc, getDocs, getDoc, orderBy, query, updateDoc, setDoc } from 'firebase/firestore'
 import '../App.css'
 
 function todayKey() {
@@ -142,40 +141,40 @@ function decryptText(cipher, key) {
   }
 }
 
-// ===== 呼叫文字情緒 API，回傳 {label(score壓0~1), confidence, topTokens...}
-async function analyzeSentimentViaApi(text) {
-  try {
-    const r = await inferSentiment(text)
-    if (!r?.ok) throw new Error('API not ok')
-    const labelMap = { pos: 'positive', neu: 'neutral', neg: 'negative' }
-    const mappedLabel = labelMap[r.label] || 'neutral'
-    let score = 0.5
-    if (r.probs && typeof r.probs === 'object') {
-      const { neg, neu, pos } = r.probs
-      score = (pos ?? 0) + (neu ?? 0) * 0.5 // pos=1, neu=0.5, neg=0
-    }
-    return {
-      label: mappedLabel,
-      score,
-      confidence: r.confidence,
-      topTokens: r.top_tokens || [],
-      model: r.model,
-      version: r.version
-    }
-  } catch (e) {
-    console.warn('[sentiment API] fallback to local:', e?.message)
-    return analyzeSentimentLocal(text)
-  }
-}
+const FUSION_LABEL_MAP = { pos: 'positive', neu: 'neutral', neg: 'negative' }
 
-// ===== 把語音多類標籤壓成三類（依你的語音模型調整）
-function triMapFromSpeechLabel(label) {
-  const L = String(label || '').toLowerCase()
-  const POS = new Set(['happy', 'joy', 'calm', 'positive', 'surprise'])
-  const NEG = new Set(['angry', 'anger', 'sad', 'fear', 'disgust', 'negative'])
-  if (POS.has(L)) return 'positive'
-  if (NEG.has(L)) return 'negative'
-  return 'neutral'
+function sentimentFromFusion(data) {
+  if (!data || typeof data !== 'object') return null
+  const fusionPred = data.fusion_pred && typeof data.fusion_pred === 'object' ? data.fusion_pred : {}
+  const topKey = typeof data.fusion_top1 === 'string' ? data.fusion_top1 : 'neu'
+  const label = FUSION_LABEL_MAP[topKey] || 'neutral'
+  const pos = typeof fusionPred.pos === 'number' ? fusionPred.pos : 0
+  const neu = typeof fusionPred.neu === 'number' ? fusionPred.neu : 0
+  const scoreRaw = pos + neu * 0.5
+  const confidence = typeof fusionPred[topKey] === 'number'
+    ? Math.max(0, Math.min(1, fusionPred[topKey]))
+    : undefined
+
+  return {
+    label,
+    score: Math.max(0, Math.min(1, scoreRaw)),
+    confidence,
+    source: 'fusion',
+    topTokens: [],
+    probs: fusionPred,
+    fusion: {
+      alpha: typeof data.alpha === 'number' ? data.alpha : undefined,
+      labels: Array.isArray(data.labels) && data.labels.length
+        ? data.labels
+        : ['pos', 'neu', 'neg'],
+      textPred: data.text_pred || null,
+      audioPred: data.audio_pred || null,
+      fusionPred,
+      textTop1: data.text_top1 || null,
+      audioTop1: data.audio_top1 || null,
+      fusionTop1: data.fusion_top1 || null,
+    },
+  }
 }
 
 export default function DiaryPage() {
@@ -203,6 +202,24 @@ export default function DiaryPage() {
   const [speechMime, setSpeechMime] = useState('')          // <-- mime
   const [speechBusy, setSpeechBusy] = useState(false)
   const [speechResetKey, setSpeechResetKey] = useState(0)
+  const [analyseBusy, setAnalyseBusy] = useState(false)
+  const [fusionAlpha, setFusionAlpha] = useState(0.5)
+  const [textProbs, setTextProbs] = useState(null)
+  const [audioProbs, setAudioProbs] = useState(null)
+  const [fusionProbs, setFusionProbs] = useState(null)
+  const [fusionTop1, setFusionTop1] = useState('')
+  const [analysisToast, setAnalysisToast] = useState({ msg: '', kind: 'success' })
+  const analysisToastTimerRef = useRef(null)
+
+  function showAnalysisToast(msg, kind = 'error', duration = 2800) {
+    if (!msg) return
+    setAnalysisToast({ msg, kind })
+    if (analysisToastTimerRef.current) clearTimeout(analysisToastTimerRef.current)
+    analysisToastTimerRef.current = setTimeout(() => {
+      setAnalysisToast({ msg: '', kind: 'success' })
+      analysisToastTimerRef.current = null
+    }, Math.max(800, duration))
+  }
 
   const baseCol = useMemo(() => {
     if (!currentUser) return null
@@ -307,6 +324,12 @@ export default function DiaryPage() {
 
   useEffect(() => { refresh() }, [refresh])
 
+  useEffect(() => () => {
+    if (analysisToastTimerRef.current) {
+      clearTimeout(analysisToastTimerRef.current)
+    }
+  }, [])
+
   // 離線：把 IndexedDB 待同步資料拉進列表
   useEffect(() => {
     async function loadPendingIntoList() {
@@ -386,7 +409,60 @@ export default function DiaryPage() {
     }
   }, [currentUser, db, refresh])
 
-  const canSave = useMemo(() => content.trim().length > 0 && !speechBusy, [content, speechBusy])
+  async function onAnalyse(text, audioBlob, alpha = fusionAlpha, opts = {}) {
+    const options = typeof opts === 'object' && opts !== null ? opts : {}
+    const updateState = options.updateState !== false
+    const showToast = options.showToast !== false
+
+    const trimmed = String(text || '').trim()
+    if (!trimmed) return null
+
+    const hasBlob = audioBlob instanceof Blob && audioBlob.size > 0
+    const fallbackType = (audioBlob && audioBlob.type) || speechMime || 'audio/wav'
+    const blobToUse = hasBlob ? audioBlob : new Blob([], { type: fallbackType || 'audio/wav' })
+    const alphaToUse = typeof alpha === 'number' && !Number.isNaN(alpha) ? alpha : fusionAlpha
+
+    if (updateState) setAnalyseBusy(true)
+    try {
+      const data = await predictFusion(trimmed, blobToUse, alphaToUse)
+      if (updateState) {
+        setTextProbs(data?.text_pred || null)
+        setAudioProbs(data?.audio_pred || null)
+        setFusionProbs(data?.fusion_pred || null)
+        setFusionTop1(data?.fusion_top1 || '')
+        if (typeof data?.alpha === 'number') setFusionAlpha(data.alpha)
+      }
+      return data
+    } catch (err) {
+      if (updateState) {
+        setTextProbs(null)
+        setAudioProbs(null)
+        setFusionProbs(null)
+        setFusionTop1('')
+      }
+      console.error('[fusion] analyse failed', err)
+      if (showToast) showAnalysisToast('融合分析失敗，請稍後再試', 'error')
+      throw err
+    } finally {
+      if (updateState) setAnalyseBusy(false)
+    }
+  }
+
+  const canAnalyse = useMemo(() => content.trim().length > 0 && !analyseBusy, [content, analyseBusy])
+  const canSave = useMemo(() => content.trim().length > 0 && !speechBusy && !analyseBusy, [content, speechBusy, analyseBusy])
+
+  async function handleAnalyseClick() {
+    const text = content.trim()
+    if (!text) {
+      showAnalysisToast('請先輸入日記內容', 'error', 2200)
+      return
+    }
+    try {
+      await onAnalyse(text, speechBlob, fusionAlpha)
+    } catch (err) {
+      // 已在 onAnalyse 中處理錯誤與提示
+    }
+  }
 
   async function handleSave() {
     const text = content.trim()
@@ -394,24 +470,24 @@ export default function DiaryPage() {
     try {
       const id = uuid()
 
-      // === 關鍵：按下「儲存」時才呼叫語音情緒 API（若有音檔）
-      let s
-      if (speechBlob && speechBlob.size > 0) {
-        try {
-          const resp = await inferSpeechEmotion(speechBlob) // 你自己的語音情緒 API
-          // resp 結構假設：{ pred: 'happy', probs: {happy:0.9,...} }
-          const probs = resp?.probs && typeof resp.probs === 'object' ? resp.probs : {}
-          const pred = resp?.pred || Object.entries(probs).sort((a,b)=>b[1]-a[1])[0]?.[0] || 'neutral'
-          const tri = triMapFromSpeechLabel(pred)
-          const conf = typeof probs[pred] === 'number' ? Math.max(0, Math.min(1, probs[pred])) : 0.5
-          s = { label: tri, score: conf, confidence: conf, source: 'speech', probs }
-        } catch (err) {
-          console.warn('[speech infer on save] failed, fallback text:', err?.message)
-          s = await analyzeSentimentViaApi(text) // 文字備援
+      let fusionData = null
+      try {
+        fusionData = await onAnalyse(text, speechBlob, fusionAlpha, { showToast: false })
+      } catch (err) {
+        console.warn('[fusion analyse on save] failed, fallback to local:', err?.message || err)
+      }
+
+      let sentiment = fusionData ? sentimentFromFusion(fusionData) : null
+      if (!sentiment) {
+        const fallbackLocal = analyzeSentimentLocal(text)
+        sentiment = {
+          ...fallbackLocal,
+          confidence: typeof fallbackLocal.score === 'number' ? fallbackLocal.score : undefined,
+          source: 'local-fallback',
+          topTokens: Array.isArray(fallbackLocal.topTokens) ? fallbackLocal.topTokens : [],
+          probs: null,
+          fusion: null,
         }
-      } else {
-        // 沒音檔就用文字情緒
-        s = await analyzeSentimentViaApi(text)
       }
 
       const newData = {
@@ -419,7 +495,7 @@ export default function DiaryPage() {
         date: todayKey(),
         isDeleted: false,
         updatedAt: new Date().toISOString(),
-        sentiment: s,
+        sentiment,
       }
 
       if (isOffline) {
@@ -437,6 +513,10 @@ export default function DiaryPage() {
       setSpeechBlob(null)
       setSpeechMime('')
       setSpeechResetKey(k => k + 1)
+      setTextProbs(null)
+      setAudioProbs(null)
+      setFusionProbs(null)
+      setFusionTop1('')
     } catch (e) {
       console.error(e)
       setError(e?.message || '存檔失敗')
@@ -558,6 +638,19 @@ export default function DiaryPage() {
     return sortedFiltered.filter(i => i.date === selectedDay)
   }, [sortedFiltered, selectedDay])
 
+  const fusionLabelText = useMemo(() => ({ pos: '正向', neu: '中立', neg: '負向' }), [])
+
+  function describeProbs(probs) {
+    if (!probs || typeof probs !== 'object') return '—'
+    return ['pos', 'neu', 'neg']
+      .map(key => {
+        const pct = typeof probs[key] === 'number' ? (probs[key] * 100).toFixed(1) : '0.0'
+        const label = fusionLabelText[key] || key
+        return `${label} ${pct}%`
+      })
+      .join(' ｜ ')
+  }
+
   async function startEdit(id, current) {
     setEditingId(id)
     setEditingText(current)
@@ -568,8 +661,26 @@ export default function DiaryPage() {
     const text = String(editingText).trim()
     if (!text) return
     try {
-      // 編輯時以文字情緒為準（也可加：若當日有 speechBlob 則優先）
-      const sentiment = await analyzeSentimentViaApi(text)
+      let sentiment = null
+      try {
+        const fusionData = await onAnalyse(text, null, fusionAlpha, { updateState: false, showToast: false })
+        sentiment = fusionData ? sentimentFromFusion(fusionData) : null
+      } catch (err) {
+        console.warn('[fusion analyse on edit] failed, fallback to local:', err?.message || err)
+      }
+
+      if (!sentiment) {
+        const fallbackLocal = analyzeSentimentLocal(text)
+        sentiment = {
+          ...fallbackLocal,
+          confidence: typeof fallbackLocal.score === 'number' ? fallbackLocal.score : undefined,
+          source: 'local-fallback',
+          topTokens: Array.isArray(fallbackLocal.topTokens) ? fallbackLocal.topTokens : [],
+          probs: null,
+          fusion: null,
+        }
+      }
+
       const contentEnc = encryptText(text, currentUser.uid)
       await updateDoc(doc(baseCol, id), {
         contentEnc,
@@ -618,6 +729,11 @@ export default function DiaryPage() {
       {!!syncStatus && !isOffline && (
         <div className="toast toast-success" style={{ position: 'static', marginTop: 8 }}>
           {syncStatus}
+        </div>
+      )}
+      {analysisToast.msg && (
+        <div className={`toast toast-${analysisToast.kind}`} style={{ position: 'static', marginTop: 8 }}>
+          {analysisToast.msg}
         </div>
       )}
 
@@ -684,8 +800,31 @@ export default function DiaryPage() {
               resetKey={speechResetKey}
             />
           </div>
+          <button
+            className="btn btn-secondary"
+            onClick={handleAnalyseClick}
+            disabled={!canAnalyse}
+          >
+            融合分析
+          </button>
           <button className="btn btn-primary" onClick={handleSave} disabled={!canSave} style={{ marginLeft: 'auto' }}>儲存</button>
         </div>
+        {analyseBusy && (
+          <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>融合分析中，請稍候…</div>
+        )}
+        {fusionProbs && (
+          <div style={{ marginTop: 10, padding: '0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb', color: '#1f2937' }}>
+            <div style={{ fontSize: 13, color: '#4b5563', marginBottom: 4 }}>
+              融合分析（α = {typeof fusionAlpha === 'number' ? fusionAlpha.toFixed(2) : '—'}）
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+              融合結果：{fusionLabelText[fusionTop1] || '—'}
+            </div>
+            <div style={{ fontSize: 13, color: '#4b5563' }}>文字：{describeProbs(textProbs)}</div>
+            <div style={{ fontSize: 13, color: '#4b5563', marginTop: 2 }}>語音：{describeProbs(audioProbs)}</div>
+            <div style={{ fontSize: 13, color: '#111827', marginTop: 4 }}>融合：{describeProbs(fusionProbs)}</div>
+          </div>
+        )}
       </div>
 
       <div className="list">
