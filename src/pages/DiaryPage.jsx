@@ -418,13 +418,11 @@ export default function DiaryPage() {
     if (!trimmed) return null
 
     const hasBlob = audioBlob instanceof Blob && audioBlob.size > 0
-    const fallbackType = (audioBlob && audioBlob.type) || speechMime || 'audio/wav'
-    const blobToUse = hasBlob ? audioBlob : new Blob([], { type: fallbackType || 'audio/wav' })
     const alphaToUse = typeof alpha === 'number' && !Number.isNaN(alpha) ? alpha : fusionAlpha
+    const data = await predictFusion(trimmed, hasBlob ? audioBlob! : undefined, alphaToUse)
 
     if (updateState) setAnalyseBusy(true)
     try {
-      const data = await predictFusion(trimmed, blobToUse, alphaToUse)
       if (updateState) {
         setTextProbs(data?.text_pred || null)
         setAudioProbs(data?.audio_pred || null)
