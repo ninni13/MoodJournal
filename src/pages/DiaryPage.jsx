@@ -419,7 +419,7 @@ export default function DiaryPage() {
 
     const hasBlob = audioBlob instanceof Blob && audioBlob.size > 0
     const alphaToUse = typeof alpha === 'number' && !Number.isNaN(alpha) ? alpha : fusionAlpha
-    const data = await predictFusion(trimmed, hasBlob ? audioBlob! : undefined, alphaToUse)
+    const data = await predictFusion(trimmed, hasBlob ? audioBlob : undefined, alphaToUse)
 
     if (updateState) setAnalyseBusy(true)
     try {
