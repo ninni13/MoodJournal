@@ -12,17 +12,18 @@ type FusionResp = {
 };
 
 export async function predictFusion(text: string, audioBlob?: Blob, alpha = 0.5): Promise<FusionResp> {
-  const base = import.meta.env.VITE_GATEWAY_BASE;
-  if (!base) throw new Error('Missing VITE_GATEWAY_BASE');
+  const envBase = import.meta.env.VITE_GATEWAY_BASE;
+  if (!envBase) throw new Error('Missing VITE_GATEWAY_BASE');
+  const base = envBase.replace(/\/$/, '');
 
   const fd = new FormData();
   fd.append('text', text ?? '');
   fd.append('alpha', String(alpha));
-  if (audioBlob instanceof Blob && audioBlob.size > 0) {
-    fd.append('file', audioBlob, 'note.wav');
+  if (audioBlob && audioBlob.size > 0) {
+    fd.append('file', audioBlob, 'note.webm');
   }
 
-  const res = await fetch(`${base.replace(/\/$/, '')}/predict-fusion`, {
+  const res = await fetch(`${base}/predict-fusion`, {
     method: 'POST',
     body: fd,
   });
