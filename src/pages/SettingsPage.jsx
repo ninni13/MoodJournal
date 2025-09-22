@@ -13,6 +13,7 @@ export default function SettingsPage() {
   const defaultTZ = 'Asia/Taipei'
   const [email, setEmail] = useState(currentUser?.email || '')
   const [reminderEnabled, setReminderEnabled] = useState(false)
+  const [keepAudio, setKeepAudio] = useState(true)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState({ msg: '', kind: 'success' })
@@ -33,8 +34,11 @@ export default function SettingsPage() {
           // Email 一律使用登入帳號，不可修改
           setEmail(currentUser.email || '')
           if (typeof p.reminderEnabled === 'boolean') setReminderEnabled(p.reminderEnabled)
+          if (typeof p.keepAudio === 'boolean') setKeepAudio(p.keepAudio)
+          else setKeepAudio(true)
         } else {
           setEmail(currentUser.email || '')
+          setKeepAudio(true)
         }
       } finally {
         setLoading(false)
@@ -64,6 +68,7 @@ export default function SettingsPage() {
       await setDoc(ref, {
         email: sEmail,
         reminderEnabled: Boolean(reminderEnabled),
+        keepAudio: Boolean(keepAudio),
         updatedAt: new Date().toISOString(),
       }, { merge: true })
       setToast({ msg: '設定已儲存', kind: 'success' })
@@ -291,6 +296,22 @@ export default function SettingsPage() {
               />
               啟用提醒（僅當日未寫會寄信）
             </label>
+          </div>
+
+          <div className="filters-row" style={{ marginTop: 12, alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 14 }}>是否保留錄音：</span>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={keepAudio}
+                onChange={(e) => setKeepAudio(e.target.checked)}
+                disabled={loading || saving}
+              />
+              {keepAudio ? '開啟' : '關閉'}
+            </label>
+          </div>
+          <div style={{ marginTop: 6, color: '#888', fontSize: 12 }}>
+            關閉後僅上傳情緒分析結果，不會送出錄音檔。
           </div>
 
           <div className="actions">

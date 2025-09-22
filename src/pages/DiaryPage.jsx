@@ -211,6 +211,7 @@ export default function DiaryPage() {
   const [fusionTokens, setFusionTokens] = useState([])
   const [analysisToast, setAnalysisToast] = useState({ msg: '', kind: 'success' })
   const analysisToastTimerRef = useRef(null)
+  const [keepAudio, setKeepAudio] = useState(true)
 
   function showAnalysisToast(msg, kind = 'error', duration = 2800) {
     if (!msg) return
@@ -226,6 +227,42 @@ export default function DiaryPage() {
     if (!currentUser) return null
     return collection(db, 'users', currentUser.uid, 'diaries')
   }, [currentUser])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!currentUser) {
+      setKeepAudio(true)
+      return () => { cancelled = true }
+    }
+    async function loadPrefs() {
+      try {
+        const ref = doc(db, 'users', currentUser.uid, 'profile', 'default')
+        const snap = await getDoc(ref)
+        if (!snap.exists()) {
+          if (!cancelled) setKeepAudio(true)
+          return
+        }
+        const data = snap.data() || {}
+        if (!cancelled) {
+          if (typeof data.keepAudio === 'boolean') setKeepAudio(data.keepAudio)
+          else setKeepAudio(true)
+        }
+      } catch (err) {
+        console.warn('[settings] keepAudio load failed:', err?.code || err?.message || err)
+        if (!cancelled) setKeepAudio(true)
+      }
+    }
+    loadPrefs()
+    return () => { cancelled = true }
+  }, [currentUser])
+
+  useEffect(() => {
+    if (!keepAudio) {
+      setSpeechBlob(null)
+      setSpeechMime('')
+      setAudioProbs(null)
+    }
+  }, [keepAudio])
 
   const refresh = useCallback(async () => {
     if (!baseCol || !currentUser) return
@@ -419,16 +456,17 @@ export default function DiaryPage() {
     if (!trimmed) return null
 
     const hasBlob = audioBlob instanceof Blob && audioBlob.size > 0
+    const shouldAttachAudio = keepAudio && hasBlob
     const alphaToUse = typeof alpha === 'number' && !Number.isNaN(alpha) ? alpha : fusionAlpha
-    console.log('[fusion] text len', trimmed.length, 'audio?', hasBlob, hasBlob ? audioBlob.type : '(none)', hasBlob ? audioBlob.size : 0)
-    const data = await predictFusion(trimmed, hasBlob ? audioBlob : undefined, alphaToUse)
+    console.log('[fusion] text len', trimmed.length, 'audio?', shouldAttachAudio, shouldAttachAudio ? audioBlob.type : '(none)', shouldAttachAudio ? audioBlob.size : 0)
+    const data = await predictFusion(trimmed, shouldAttachAudio ? audioBlob : undefined, alphaToUse)
     const tokens = Array.isArray(data?.text_top_tokens) ? data.text_top_tokens.slice(0, 5) : []
 
     if (updateState) setAnalyseBusy(true)
     try {
       if (updateState) {
         setTextProbs(data?.text_pred || null)
-        setAudioProbs(data?.audio_pred || null)
+        setAudioProbs(keepAudio ? (data?.audio_pred || null) : null)
         setFusionProbs(data?.fusion_pred || null)
         setFusionTop1(data?.fusion_top1 || '')
         setFusionTokens(tokens)
@@ -804,7 +842,15 @@ export default function DiaryPage() {
               getContent={() => content}
               setContent={setContent}
               onSpeechBusy={setSpeechBusy}
-              onSpeechBlob={(blob, mime) => { setSpeechBlob(blob || null); setSpeechMime(mime || '') }}
+              onSpeechBlob={(blob, mime) => {
+                if (keepAudio && blob) {
+                  setSpeechBlob(blob || null)
+                  setSpeechMime(mime || '')
+                } else {
+                  setSpeechBlob(null)
+                  setSpeechMime('')
+                }
+              }}
               resetKey={speechResetKey}
             />
           </div>
