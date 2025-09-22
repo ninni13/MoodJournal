@@ -143,7 +143,7 @@ function decryptText(cipher, key) {
 
 const FUSION_LABEL_MAP = { pos: 'positive', neu: 'neutral', neg: 'negative' }
 
-function sentimentFromFusion(data) {
+function sentimentFromFusion(data, tokens = []) {
   if (!data || typeof data !== 'object') return null
   const fusionPred = data.fusion_pred && typeof data.fusion_pred === 'object' ? data.fusion_pred : {}
   const topKey = typeof data.fusion_top1 === 'string' ? data.fusion_top1 : 'neu'
@@ -160,7 +160,7 @@ function sentimentFromFusion(data) {
     score: Math.max(0, Math.min(1, scoreRaw)),
     confidence,
     source: 'fusion',
-    topTokens: [],
+    topTokens: Array.isArray(tokens) ? tokens : [],
     probs: fusionPred,
     fusion: {
       alpha: typeof data.alpha === 'number' ? data.alpha : undefined,
@@ -208,6 +208,7 @@ export default function DiaryPage() {
   const [audioProbs, setAudioProbs] = useState(null)
   const [fusionProbs, setFusionProbs] = useState(null)
   const [fusionTop1, setFusionTop1] = useState('')
+  const [fusionTokens, setFusionTokens] = useState([])
   const [analysisToast, setAnalysisToast] = useState({ msg: '', kind: 'success' })
   const analysisToastTimerRef = useRef(null)
 
@@ -421,6 +422,7 @@ export default function DiaryPage() {
     const alphaToUse = typeof alpha === 'number' && !Number.isNaN(alpha) ? alpha : fusionAlpha
     console.log('[fusion] text len', trimmed.length, 'audio?', hasBlob, hasBlob ? audioBlob.type : '(none)', hasBlob ? audioBlob.size : 0)
     const data = await predictFusion(trimmed, hasBlob ? audioBlob : undefined, alphaToUse)
+    const tokens = Array.isArray(data?.text_top_tokens) ? data.text_top_tokens.slice(0, 5) : []
 
     if (updateState) setAnalyseBusy(true)
     try {
@@ -429,6 +431,7 @@ export default function DiaryPage() {
         setAudioProbs(data?.audio_pred || null)
         setFusionProbs(data?.fusion_pred || null)
         setFusionTop1(data?.fusion_top1 || '')
+        setFusionTokens(tokens)
         if (typeof data?.alpha === 'number') setFusionAlpha(data.alpha)
       }
       return data
@@ -438,6 +441,7 @@ export default function DiaryPage() {
         setAudioProbs(null)
         setFusionProbs(null)
         setFusionTop1('')
+        setFusionTokens([])
       }
       console.error('[fusion] analyse failed', err)
       if (showToast) showAnalysisToast('融合分析失敗，請稍後再試', 'error')
@@ -476,7 +480,10 @@ export default function DiaryPage() {
         console.warn('[fusion analyse on save] failed, fallback to local:', err?.message || err)
       }
 
-      let sentiment = fusionData ? sentimentFromFusion(fusionData) : null
+      const fusionTokensFromData = Array.isArray(fusionData?.text_top_tokens)
+        ? fusionData.text_top_tokens.slice(0, 5)
+        : []
+      let sentiment = fusionData ? sentimentFromFusion(fusionData, fusionTokensFromData) : null
       if (!sentiment) {
         const fallbackLocal = analyzeSentimentLocal(text)
         sentiment = {
@@ -516,6 +523,7 @@ export default function DiaryPage() {
       setAudioProbs(null)
       setFusionProbs(null)
       setFusionTop1('')
+      setFusionTokens([])
     } catch (e) {
       console.error(e)
       setError(e?.message || '存檔失敗')
@@ -663,7 +671,8 @@ export default function DiaryPage() {
       let sentiment = null
       try {
         const fusionData = await onAnalyse(text, null, fusionAlpha, { updateState: false, showToast: false })
-        sentiment = fusionData ? sentimentFromFusion(fusionData) : null
+        const tokensFromData = Array.isArray(fusionData?.text_top_tokens) ? fusionData.text_top_tokens.slice(0, 5) : []
+        sentiment = fusionData ? sentimentFromFusion(fusionData, tokensFromData) : null
       } catch (err) {
         console.warn('[fusion analyse on edit] failed, fallback to local:', err?.message || err)
       }
@@ -822,6 +831,18 @@ export default function DiaryPage() {
             <div style={{ fontSize: 13, color: '#4b5563' }}>文字：{describeProbs(textProbs)}</div>
             <div style={{ fontSize: 13, color: '#4b5563', marginTop: 2 }}>語音：{describeProbs(audioProbs)}</div>
             <div style={{ fontSize: 13, color: '#111827', marginTop: 4 }}>融合：{describeProbs(fusionProbs)}</div>
+            {fusionTokens.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>關鍵詞</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {fusionTokens.slice(0, 5).map((t, idx) => (
+                    <span key={idx} className="kw-tag" style={{ background: '#fee2e2', color: '#991b1b' }}>
+                      {typeof t?.text === 'string' ? t.text : String(t)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
