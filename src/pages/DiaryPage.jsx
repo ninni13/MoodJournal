@@ -203,7 +203,7 @@ export default function DiaryPage() {
   const [speechBusy, setSpeechBusy] = useState(false)
   const [speechResetKey, setSpeechResetKey] = useState(0)
   const [analyseBusy, setAnalyseBusy] = useState(false)
-  const [fusionAlpha, setFusionAlpha] = useState(0.5)
+  const [fusionAlpha, setFusionAlpha] = useState(0.75)
   const [textProbs, setTextProbs] = useState(null)
   const [audioProbs, setAudioProbs] = useState(null)
   const [fusionProbs, setFusionProbs] = useState(null)
