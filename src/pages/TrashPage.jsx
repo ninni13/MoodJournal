@@ -1,3 +1,4 @@
+import EmotionChip from '../components/EmotionChip.jsx'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../state/AuthContext.jsx'
@@ -10,7 +11,6 @@ import {
   orderBy,
   query,
   updateDoc,
-  where,
 } from 'firebase/firestore'
 
 function todayKey() {
@@ -58,6 +58,7 @@ export default function TrashPage() {
         date: String(e.date || todayKey()).slice(0, 10).replaceAll('/', '-'),
         content: String(e.content ?? ''),
         isDeleted: Boolean(e.isDeleted),
+        sentiment: e.sentiment,
       }))
       const filtered = normalized.filter(e => e.isDeleted === true)
       filtered.sort((a, b) => toEpoch(b.date) - toEpoch(a.date))
@@ -117,50 +118,7 @@ export default function TrashPage() {
                   <span className="entry-date">{formatDisplayDate(e.date)}</span>
                   <span className="entry-sep">|</span>
                   <span className="entry-summary">{String(e.content).slice(0, 30)}{String(e.content).length > 30 ? '…' : ''}</span>
-                  {/* Optional: show sentiment tag if exists */}
-                  {e.sentiment && (
-                    <>
-                      {(() => {
-                        const s = e.sentiment || {}
-                        const label = s.label || 'neutral'
-                        const conf = typeof s.confidence === 'number' ? s.confidence : undefined
-                        const cls = label === 'positive' ? 'chip-positive' : (label === 'negative' ? 'chip-negative' : 'chip-neutral')
-                        const showKw = label === 'positive' || label === 'negative'
-                        const title = conf !== undefined ? `${label} (信心 ${(conf * 100).toFixed(1)}%)` : label
-                        const confCss = conf !== undefined ? Math.max(0.3, Math.min(1, conf)).toFixed(2) : undefined
-                        return (
-                          <span className="chip-wrap" style={{ marginLeft: 8 }}>
-                            <span
-                              className={`chip ${cls}`}
-                              style={{ ...(confCss ? { ['--conf']: confCss } : {}) }}
-                              data-conf={confCss ? '1' : undefined}
-                              title={title}
-                            >
-                              {(label === 'positive' && '😊 正向') || (label === 'negative' && '☹️ 負向') || '😐 中立'}
-                              {conf !== undefined && (
-                                <span style={{ marginLeft: 4, fontSize: '11px', opacity: 0.9 }}>
-                                  {(conf * 100).toFixed(0)}%
-                                </span>
-                              )}
-                            </span>
-                            {showKw && Array.isArray(s.topTokens) && s.topTokens.length > 0 && (
-                              <div className="kw-popover">
-                                <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>關鍵詞</div>
-                                <span className="kw-tags">
-                                  {s.topTokens.slice(0, 8).map((t, i) => (
-                                    <span key={i} className={`kw-tag ${t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')}`} title={`貢獻度 ${(t.contrib * 100).toFixed(1)}%`}>
-                                      {t.text}
-                                    </span>
-                                  ))}
-                                </span>
-                              </div>
-                            )}
-                          </span>
-                        )
-                      })()}
-                      
-                    </>
-                  )}
+                  <EmotionChip sentiment={e.sentiment} />
                 </div>
                 <div className="entry-actions">
                   <button className="btn btn-secondary" onClick={() => restore(e.id)}>還原</button>

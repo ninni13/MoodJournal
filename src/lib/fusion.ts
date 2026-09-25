@@ -1,32 +1,71 @@
-export type Probs = { pos: number; neu: number; neg: number };
+export type EmotionLabel =
+  | 'Anger'
+  | 'Disgust'
+  | 'Fear'
+  | 'Happy'
+  | 'Neutral'
+  | 'Sad'
+  | 'Surprise'
 
-type FusionResp = {
-  text_pred: Probs;
-  audio_pred: Probs;
-  fusion_pred: Probs;
-  text_top1: string;
-  audio_top1: string;
-  fusion_top1: string;
-  alpha: number;
-  labels: string[];
-};
+export type EmotionProbs = Record<EmotionLabel, number>
 
-export async function predictFusion(text: string, audioBlob?: Blob, alpha = 0.5): Promise<FusionResp> {
-  const envBase = import.meta.env.VITE_GATEWAY_BASE;
-  if (!envBase) throw new Error('Missing VITE_GATEWAY_BASE');
-  const base = envBase.replace(/\/$/, '');
+export type FusionResp = {
+  mode: 'text_only' | 'multimodal'
+  labels: EmotionLabel[]
 
-  const fd = new FormData();
-  fd.append('text', text ?? '');
-  fd.append('alpha', String(alpha));
-  if (audioBlob && audioBlob.size > 0) {
-    fd.append('file', audioBlob, 'note.webm');
+  text_pred: EmotionProbs
+  audio_pred: EmotionProbs | null
+  fusion_pred: EmotionProbs
+
+  text_top1: EmotionLabel
+  audio_top1: EmotionLabel | null
+  fusion_top1: EmotionLabel
+
+  confidence: number
+}
+
+export async function predictFusion(
+  text: string,
+  audioBlob?: Blob
+): Promise<FusionResp> {
+
+  const envBase = import.meta.env.VITE_GATEWAY_BASE
+
+  if (!envBase) {
+    throw new Error('Missing VITE_GATEWAY_BASE')
   }
 
-  const res = await fetch(`${base}/predict-fusion`, {
-    method: 'POST',
-    body: fd,
-  });
-  if (!res.ok) throw new Error(`fusion failed: ${res.status}`);
-  return res.json();
+  const base = envBase.replace(/\/$/, '')
+
+  const fd = new FormData()
+
+  fd.append('text', text ?? '')
+
+  if (audioBlob && audioBlob.size > 0) {
+    fd.append(
+      'file',
+      audioBlob,
+      'note.webm'
+    )
+  }
+
+  const res = await fetch(
+    `${base}/predict-fusion`,
+    {
+      method: 'POST',
+      body: fd,
+    }
+  )
+
+  if (!res.ok) {
+    const msg = await res
+      .text()
+      .catch(() => res.statusText)
+
+    throw new Error(
+      `fusion failed: ${res.status} ${msg}`
+    )
+  }
+
+  return res.json()
 }

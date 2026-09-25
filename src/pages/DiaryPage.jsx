@@ -1,9 +1,11 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import EmotionChip from '../components/EmotionChip.jsx'
+import EmotionInsights from '../components/EmotionInsights.jsx'
+import { EMOTION_META, analyzeEmotionLocal as analyzeSentimentLocal } from '../lib/emotions.js'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CryptoJS from 'crypto-js'
 import { addPending, getAllPending, deletePending } from '../lib/idb.js'
 import { Link } from 'react-router-dom'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO, isAfter, subDays, subMonths } from 'date-fns'
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceArea, ReferenceLine } from 'recharts'
+import { format, startOfMonth, endOfMonth, parseISO, subMonths } from 'date-fns'
 import { useAuth } from '../state/AuthContext.jsx'
 import { db, logout } from '../lib/firebase.js'
 import { predictFusion } from '../lib/fusion'
@@ -28,90 +30,6 @@ function toEpoch(dateStr) {
 function formatDisplayDate(dateStr) {
   const norm = String(dateStr).replaceAll('-', '/')
   return norm
-}
-
-// ===== 本地簡易情緒，僅作備援（API 壞掉時）
-function analyzeSentimentLocal(text) {
-  const s = String(text || '')
-  const positiveWords = ['開心', '快樂', '愉悅', '幸福', '讚', '爽', '好吃', '好玩', '愛']
-  const negativeWords = ['累', '難過', '生氣', '煩', '壓力', '痛苦', '失望', '不喜歡']
-
-  let posHits = 0
-  let negHits = 0
-  positiveWords.forEach(w => { if (s.includes(w)) posHits++ })
-  negativeWords.forEach(w => { if (s.includes(w)) negHits++ })
-
-  const raw = posHits - negHits
-  let label = 'neutral'
-  if (raw > 0) label = 'positive'
-  else if (raw < 0) label = 'negative'
-
-  let score
-  if (label === 'positive') score = Math.min(1, 0.8 + Math.max(0, posHits - 1) * 0.05)
-  else if (label === 'negative') score = Math.max(0, 0.2 - Math.max(0, negHits - 1) * 0.05)
-  else score = 0.5
-
-  return { label, score }
-}
-
-function sentimentView(sentiment) {
-  const label = sentiment?.label || 'neutral'
-  const confidence = typeof sentiment?.confidence === 'number' ? sentiment.confidence : undefined
-  const topTokens = Array.isArray(sentiment?.topTokens) ? sentiment.topTokens : []
-  const map = {
-    positive: { emoji: '😊', text: '正向', cls: 'chip-positive' },
-    neutral:  { emoji: '😐', text: '中立', cls: 'chip-neutral' },
-    negative: { emoji: '☹️', text: '負向', cls: 'chip-negative' },
-  }
-  const m = map[label] || map.neutral
-
-  let title = label
-  if (confidence !== undefined) title += ` (信心: ${(confidence * 100).toFixed(1)}%)`
-  const confForCss = confidence !== undefined ? Math.max(0.3, Math.min(1, confidence)).toFixed(2) : undefined
-  const showKw = label === 'positive' || label === 'negative'
-
-  return (
-    <span className="chip-wrap">
-      <span
-        className={`chip ${m.cls}`}
-        title={title}
-        data-conf={confForCss ? '1' : undefined}
-        style={confForCss ? { ['--conf']: confForCss } : undefined}
-      >
-        <span style={{ marginRight: 4 }}>{m.emoji}</span>
-        {m.text}
-        {confidence !== undefined && (
-          <span style={{ marginLeft: 4, fontSize: '11px', opacity: 0.9 }}>
-            {(confidence * 100).toFixed(0)}%
-          </span>
-        )}
-      </span>
-
-      {showKw && topTokens.length > 0 && (
-        <div className="kw-popover">
-          <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>關鍵詞</div>
-          <span className="kw-tags">
-            {topTokens.slice(0, 8).map((t, i) => {
-              const tagCls = t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')
-              const pct = typeof t.contrib === 'number' ? (t.contrib * 100).toFixed(1) : '–'
-              return (
-                <span key={i} className={`kw-tag ${tagCls}`} title={`貢獻度 ${pct}%`}>
-                  {t.text}
-                </span>
-              )
-            })}
-          </span>
-        </div>
-      )}
-    </span>
-  )
-}
-
-function scoreLabel(score) {
-  if (score == null) return { emoji: '–', text: '無資料', color: '#9ca3af' }
-  if (score < 0.3) return { emoji: '☹️', text: '負向', color: '#ef4444' }
-  if (score > 0.7) return { emoji: '😊', text: '正向', color: '#10b981' }
-  return { emoji: '😐', text: '中立', color: '#6b7280' }
 }
 
 function uuid() {
@@ -140,36 +58,46 @@ function decryptText(cipher, key) {
     return null
   }
 }
-
-const FUSION_LABEL_MAP = { pos: 'positive', neu: 'neutral', neg: 'negative' }
-
-function sentimentFromFusion(data, tokens = []) {
+function sentimentFromFusion(data) {
   if (!data || typeof data !== 'object') return null
-  const fusionPred = data.fusion_pred && typeof data.fusion_pred === 'object' ? data.fusion_pred : {}
-  const topKey = typeof data.fusion_top1 === 'string' ? data.fusion_top1 : 'neu'
-  const label = FUSION_LABEL_MAP[topKey] || 'neutral'
-  const pos = typeof fusionPred.pos === 'number' ? fusionPred.pos : 0
-  const neu = typeof fusionPred.neu === 'number' ? fusionPred.neu : 0
-  const scoreRaw = pos + neu * 0.5
-  const confidence = typeof fusionPred[topKey] === 'number'
-    ? Math.max(0, Math.min(1, fusionPred[topKey]))
-    : undefined
+
+  const fusionPred =
+    data.fusion_pred && typeof data.fusion_pred === 'object'
+      ? data.fusion_pred
+      : {}
+
+  const label =
+    typeof data.fusion_top1 === 'string'
+      ? data.fusion_top1
+      : 'Neutral'
+
+  const confidence =
+    typeof data.confidence === 'number'
+      ? data.confidence
+      : (
+          typeof fusionPred[label] === 'number'
+            ? fusionPred[label]
+            : undefined
+        )
 
   return {
     label,
-    score: Math.max(0, Math.min(1, scoreRaw)),
     confidence,
-    source: 'fusion',
-    topTokens: Array.isArray(tokens) ? tokens : [],
+    source: data.mode === 'multimodal'
+      ? 'fusion'
+      : 'text-only',
     probs: fusionPred,
+
     fusion: {
-      alpha: typeof data.alpha === 'number' ? data.alpha : undefined,
-      labels: Array.isArray(data.labels) && data.labels.length
+      mode: data.mode,
+      labels: Array.isArray(data.labels)
         ? data.labels
-        : ['pos', 'neu', 'neg'],
+        : Object.keys(EMOTION_META),
+
       textPred: data.text_pred || null,
       audioPred: data.audio_pred || null,
       fusionPred,
+
       textTop1: data.text_top1 || null,
       audioTop1: data.audio_top1 || null,
       fusionTop1: data.fusion_top1 || null,
@@ -194,16 +122,12 @@ export default function DiaryPage() {
   const [startDate, setStartDate] = useState(null)
   const [endDate, setEndDate] = useState(null)
   // 圖表
-  const [tab, setTab] = useState('line')   // 'line' | 'heat'
-  const [range, setRange] = useState('week') // 'week' | 'month'
-  const [selectedDay, setSelectedDay] = useState(null) // 'YYYY-MM-DD'
   // 語音：我們改成「儲存時才打語音情緒 API」，故保留 blob 在父層
   const [speechBlob, setSpeechBlob] = useState(null)        // <-- 錄音檔
   const [speechMime, setSpeechMime] = useState('')          // <-- mime
   const [speechBusy, setSpeechBusy] = useState(false)
   const [speechResetKey, setSpeechResetKey] = useState(0)
   const [analyseBusy, setAnalyseBusy] = useState(false)
-  const [fusionAlpha, setFusionAlpha] = useState(0.75)
   const [textProbs, setTextProbs] = useState(null)
   const [audioProbs, setAudioProbs] = useState(null)
   const [fusionProbs, setFusionProbs] = useState(null)
@@ -447,7 +371,7 @@ export default function DiaryPage() {
     }
   }, [currentUser, db, refresh])
 
-  async function onAnalyse(text, audioBlob, alpha = fusionAlpha, opts = {}) {
+  async function onAnalyse(text, audioBlob, opts = {}) {
     const options = typeof opts === 'object' && opts !== null ? opts : {}
     const updateState = options.updateState !== false
     const showToast = options.showToast !== false
@@ -457,9 +381,11 @@ export default function DiaryPage() {
 
     const hasBlob = audioBlob instanceof Blob && audioBlob.size > 0
     const shouldAttachAudio = keepAudio && hasBlob
-    const alphaToUse = typeof alpha === 'number' && !Number.isNaN(alpha) ? alpha : fusionAlpha
     console.log('[fusion] text len', trimmed.length, 'audio?', shouldAttachAudio, shouldAttachAudio ? audioBlob.type : '(none)', shouldAttachAudio ? audioBlob.size : 0)
-    const data = await predictFusion(trimmed, shouldAttachAudio ? audioBlob : undefined, alphaToUse)
+    const data = await predictFusion(
+  trimmed,
+  shouldAttachAudio ? audioBlob : undefined
+)
     const tokens = Array.isArray(data?.text_top_tokens) ? data.text_top_tokens.slice(0, 5) : []
 
     if (updateState) setAnalyseBusy(true)
@@ -470,7 +396,6 @@ export default function DiaryPage() {
         setFusionProbs(data?.fusion_pred || null)
         setFusionTop1(data?.fusion_top1 || '')
         setFusionTokens(tokens)
-        if (typeof data?.alpha === 'number') setFusionAlpha(data.alpha)
       }
       return data
     } catch (err) {
@@ -499,7 +424,7 @@ export default function DiaryPage() {
       return
     }
     try {
-      await onAnalyse(text, speechBlob, fusionAlpha)
+      await onAnalyse(text, speechBlob)
     } catch (err) {
       // 已在 onAnalyse 中處理錯誤與提示
     }
@@ -513,7 +438,7 @@ export default function DiaryPage() {
 
       let fusionData = null
       try {
-        fusionData = await onAnalyse(text, speechBlob, fusionAlpha, { showToast: false })
+        fusionData = await onAnalyse(text, speechBlob, { showToast: false })
       } catch (err) {
         console.warn('[fusion analyse on save] failed, fallback to local:', err?.message || err)
       }
@@ -526,7 +451,6 @@ export default function DiaryPage() {
         const fallbackLocal = analyzeSentimentLocal(text)
         sentiment = {
           ...fallbackLocal,
-          confidence: typeof fallbackLocal.score === 'number' ? fallbackLocal.score : undefined,
           source: 'local-fallback',
           topTokens: Array.isArray(fallbackLocal.topTokens) ? fallbackLocal.topTokens : [],
           probs: null,
@@ -624,77 +548,38 @@ export default function DiaryPage() {
     return searchQuery.trim() !== '' || quickPreset !== 'all'
   }, [searchQuery, quickPreset])
 
-  // ===== Insights: 折線圖 =====
-  const lineData = useMemo(() => {
-    const now = new Date()
-    const days = range === 'week' ? 7 : 30
-    let latest = new Date(0)
-    for (const it of sortedFiltered) {
-      const d = parseISO(it.date)
-      if (d > latest) latest = d
-    }
-    const end = latest > now ? latest : now
-    const start = subDays(end, days - 1)
-    const allDays = eachDayOfInterval({ start, end })
+  const fusionLabelText = useMemo(() => ({
+  Anger: '生氣',
+  Disgust: '厭惡',
+  Fear: '害怕',
+  Happy: '開心',
+  Neutral: '中立',
+  Sad: '難過',
+  Surprise: '驚訝',
+}), [])
 
-    const byKey = new Map()
-    for (const it of sortedFiltered) {
-      const d = parseISO(it.date)
-      if (isAfter(start, d)) continue
-      if (d > end) continue
-      const k = it.date
-      if (!byKey.has(k)) byKey.set(k, [])
-      const val = Number(it?.sentiment?.score ?? 0.5)
-      byKey.get(k).push(val)
-    }
+function describeProbs(probs) {
+  if (!probs || typeof probs !== 'object') return '—'
 
-    return allDays.map(d => {
-      const k = format(d, 'yyyy-MM-dd')
-      const arr = byKey.get(k) || []
-      const avg = arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null
-      return { date: k, score: avg }
+  return [
+    'Anger',
+    'Disgust',
+    'Fear',
+    'Happy',
+    'Neutral',
+    'Sad',
+    'Surprise',
+  ]
+    .map(key => {
+      const pct =
+        typeof probs[key] === 'number'
+          ? (probs[key] * 100).toFixed(1)
+          : '0.0'
+
+      return `${fusionLabelText[key]} ${pct}%`
     })
-  }, [entries, range])
-
-  // ===== Insights: 月曆熱圖 =====
-  const monthHeat = useMemo(() => {
-    const base = endDate || new Date()
-    const start = startOfMonth(base)
-    const end = endOfMonth(base)
-    const days = eachDayOfInterval({ start, end })
-    const byKey = new Map()
-    for (const it of sortedFiltered) {
-      const k = it.date
-      const dt = parseISO(k)
-      if (dt < start || dt > end) continue
-      if (!byKey.has(k)) byKey.set(k, [])
-      byKey.get(k).push(Number(it?.sentiment?.score ?? 0.5))
-    }
-    return days.map(d => {
-      const k = format(d, 'yyyy-MM-dd')
-      const arr = byKey.get(k) || []
-      const avg = arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null
-      return { date: k, score: avg, day: d.getDate(), dow: d.getDay() }
-    })
-  }, [entries])
-
-  const selectedDayItems = useMemo(() => {
-    if (!selectedDay) return []
-    return sortedFiltered.filter(i => i.date === selectedDay)
-  }, [sortedFiltered, selectedDay])
-
-  const fusionLabelText = useMemo(() => ({ pos: '正向', neu: '中立', neg: '負向' }), [])
-
-  function describeProbs(probs) {
-    if (!probs || typeof probs !== 'object') return '—'
-    return ['pos', 'neu', 'neg']
-      .map(key => {
-        const pct = typeof probs[key] === 'number' ? (probs[key] * 100).toFixed(1) : '0.0'
-        const label = fusionLabelText[key] || key
-        return `${label} ${pct}%`
-      })
-      .join(' ｜ ')
-  }
+    .join(' ｜ ')
+}
 
   async function startEdit(id, current) {
     setEditingId(id)
@@ -708,7 +593,7 @@ export default function DiaryPage() {
     try {
       let sentiment = null
       try {
-        const fusionData = await onAnalyse(text, null, fusionAlpha, { updateState: false, showToast: false })
+        const fusionData = await onAnalyse(text, null, { updateState: false, showToast: false })
         const tokensFromData = Array.isArray(fusionData?.text_top_tokens) ? fusionData.text_top_tokens.slice(0, 5) : []
         sentiment = fusionData ? sentimentFromFusion(fusionData, tokensFromData) : null
       } catch (err) {
@@ -719,7 +604,6 @@ export default function DiaryPage() {
         const fallbackLocal = analyzeSentimentLocal(text)
         sentiment = {
           ...fallbackLocal,
-          confidence: typeof fallbackLocal.score === 'number' ? fallbackLocal.score : undefined,
           source: 'local-fallback',
           topTokens: Array.isArray(fallbackLocal.topTokens) ? fallbackLocal.topTokens : [],
           probs: null,
@@ -869,7 +753,7 @@ export default function DiaryPage() {
         {fusionProbs && (
           <div style={{ marginTop: 10, padding: '0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb', color: '#1f2937' }}>
             <div style={{ fontSize: 13, color: '#4b5563', marginBottom: 4 }}>
-              融合分析（α = {typeof fusionAlpha === 'number' ? fusionAlpha.toFixed(2) : '—'}）
+              7 類多模態情緒分析
             </div>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
               融合結果：{fusionLabelText[fusionTop1] || '—'}
@@ -916,7 +800,7 @@ export default function DiaryPage() {
                   ) : (
                     <>
                       <span className="entry-summary">{summary(e.content)}</span>
-                      {sentimentView(e.sentiment)}
+                      <EmotionChip sentiment={e.sentiment} />
                       {e.localPending && (
                         <span className="chip chip-pending" title="尚未同步">待同步</span>
                       )}
@@ -946,159 +830,7 @@ export default function DiaryPage() {
       {/* Insights 區塊 */}
       <div className="list" style={{ marginTop: '1.5rem' }}>
         <h2 className="subtitle">情緒視覺化</h2>
-        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-          <button className={`btn ${tab === 'line' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('line')}>折線圖</button>
-          <button className={`btn ${tab === 'heat' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('heat')}>熱力圖</button>
-        </div>
-
-        {tab === 'line' && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <button className={`btn ${range === 'week' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => setRange('week')}>最近 7 天</button>
-              <button className={`btn ${range === 'month' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => setRange('month')}>最近 30 天</button>
-            </div>
-            {loading ? (
-              <p className="empty">載入中…</p>
-            ) : (
-              <div style={{ width: '100%', height: 320 }}>
-                <ResponsiveContainer>
-                  <LineChart data={lineData} margin={{ top: 10, right: 20, bottom: 20, left: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                    <XAxis
-                      dataKey="date"
-                      tickFormatter={(v) => format(parseISO(v), 'MM/dd')}
-                      minTickGap={20}
-                      tickMargin={12}
-                    />
-                    <YAxis domain={[0, 1]} tickCount={6} />
-                    <ReferenceArea y1={0} y2={0.3} fill="#fee2e2" fillOpacity={0.6} strokeOpacity={0} />
-                    <ReferenceArea y1={0.3} y2={0.7} fill="#f3f4f6" fillOpacity={0.6} strokeOpacity={0} />
-                    <ReferenceArea y1={0.7} y2={1} fill="#dcfce7" fillOpacity={0.6} strokeOpacity={0} />
-                    <ReferenceLine y={0.3} stroke="#d1d5db" strokeDasharray="3 3" />
-                    <ReferenceLine y={0.7} stroke="#d1d5db" strokeDasharray="3 3" />
-                    <Tooltip
-                      labelFormatter={(v) => format(parseISO(v), 'yyyy/MM/dd')}
-                      formatter={(val) => {
-                        const s = Number(val)
-                        const m = scoreLabel(s)
-                        return [`${s?.toFixed?.(2)} ${m.emoji} ${m.text}`, '情緒']
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="score"
-                      stroke="#d36f72"
-                      strokeWidth={2}
-                      connectNulls
-                      dot={(p) => {
-                        const { cx, cy, value } = p
-                        if (value == null || Number.isNaN(value) || !isFinite(value)) return null
-                        if (!isFinite(cx) || !isFinite(cy)) return null
-                        const m = scoreLabel(value)
-                        return <circle cx={cx} cy={cy} r={3} fill={m.color} stroke="#fff" strokeWidth={1} />
-                      }}
-                      activeDot={(p) => {
-                        const { cx, cy, value } = p
-                        if (value == null || Number.isNaN(value) || !isFinite(value)) return null
-                        if (!isFinite(cx) || !isFinite(cy)) return null
-                        return <circle cx={cx} cy={cy} r={5} fill="#d36f72" stroke="#fff" strokeWidth={1} />
-                      }}
-                      isAnimationActive={false}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </div>
-        )}
-
-        {tab === 'heat' && (
-          <div style={{ marginTop: 12 }}>
-            {loading ? (
-              <p className="empty">載入中…</p>
-            ) : (
-              <>
-                <div className="heatmap">
-                  <div className="heatmap-grid">
-                    {['日','一','二','三','四','五','六'].map((d) => (
-                      <div key={`h-${d}`} className="heatmap-header">{d}</div>
-                    ))}
-                    {monthHeat.map((d, idx) => {
-                      const score = d.score
-                      let cls = 'neutral'
-                      const today = new Date(); today.setHours(0,0,0,0)
-                      const isFuture = parseISO(d.date) > today
-                      if (isFuture) {
-                        cls = 'future'
-                      } else if (score != null) {
-                        if (score < 0.3) cls = 'neg'
-                        else if (score > 0.7) cls = 'pos'
-                        else cls = 'neutral'
-                      }
-                      const style = { gridColumnStart: idx === 0 ? (d.dow + 1) : 'auto' }
-                      return (
-                        <button
-                          key={d.date}
-                          className={`heat-cell ${cls}`}
-                          style={style}
-                          title={isFuture ? `${d.date} - 未來` : `${d.date}${score != null ? ` - 平均 ${score.toFixed(2)}` : ''}`}
-                          onClick={() => !isFuture && setSelectedDay(d.date)}
-                          disabled={isFuture}
-                        >
-                          <span className="heat-day">{d.day}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div className="heat-legend">
-                    <span className="legend neg">負向</span>
-                    <span className="legend neutral">中立</span>
-                    <span className="legend pos">正向</span>
-                  </div>
-                </div>
-
-                {selectedDay && (
-                  <div style={{ marginTop: 12 }}>
-                    <h2 className="subtitle">{format(parseISO(selectedDay), 'yyyy/MM/dd')} 的日記</h2>
-                    {selectedDayItems.length === 0 ? (
-                      <p className="empty">當日沒有日記</p>
-                    ) : (
-                      <ul className="entries">
-                        {selectedDayItems.map(e => (
-                          <li key={e.id} className="entry">
-                            <div className="entry-main" style={{ alignItems: 'flex-start', flexDirection: 'column' }}>
-                              <div className="entry-full" style={{ whiteSpace: 'pre-wrap' }}>{e.content}</div>
-                              <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                {(() => {
-                                  const s = e.sentiment || {}
-                                  const label = s.label || 'neutral'
-                                  const cls = label === 'positive' ? 'chip-positive' : (label === 'negative' ? 'chip-negative' : 'chip-neutral')
-                                  const text = label === 'positive' ? '正向' : (label === 'negative' ? '負向' : '中立')
-                                  return (
-                                    <span className={`chip ${cls}`} style={{ padding: '0 10px', height: 22, lineHeight: '22px' }}>{text}</span>
-                                  )
-                                })()}
-                                <span style={{ fontSize: 13, color: '#9ca3af' }}>｜ 關鍵字 top5：</span>
-                                <span className="kw-tags" style={{ marginLeft: 0 }}>
-                                  {(Array.isArray(e.sentiment?.topTokens) ? e.sentiment.topTokens.slice(0, 5) : []).map((t, i) => (
-                                    <span key={i} className={`kw-tag ${t.label === 'neg' ? 'kw-neg' : (t.label === 'pos' ? 'kw-pos' : 'kw-neu')}`}>{t.text}</span>
-                                  ))}
-                                  {(!Array.isArray(e.sentiment?.topTokens) || e.sentiment.topTokens.length === 0) && (
-                                    <span style={{ fontSize: 13, color: '#9ca3af' }}>—</span>
-                                  )}
-                                </span>
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+        <EmotionInsights items={sortedFiltered} loading={loading} month={endDate} />
       </div>
     </div>
   )
