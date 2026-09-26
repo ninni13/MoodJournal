@@ -42,8 +42,9 @@ export default function LoginPage() {
       <main className="login-main" role="main">
         <section className="login-card" role="region" aria-labelledby="login-title" aria-describedby="login-desc">
           <header className="login-header">
+            <img className="login-logo" src="/icon.png" alt="" aria-hidden="true" />
             <h1 id="login-title" className="login-title">情緒日記</h1>
-            <p id="login-desc" className="login-desc">請先登入以使用你的日記</p>
+            <p id="login-desc" className="login-desc">登入後繼續記錄今天的心情</p>
           </header>
 
           <form className="login-actions" onSubmit={handleGoogleLogin}>
@@ -61,7 +62,7 @@ export default function LoginPage() {
               ) : (
                 <>
                   <GoogleIcon />
-                  <span>使用 Google 登入</span>
+                  <span>使用 Google 繼續</span>
                 </>
               )}
             </button>

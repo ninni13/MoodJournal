@@ -239,11 +239,9 @@ export default function SettingsPage() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="title" style={{ marginBottom: 0 }}>設定</h1>
-        <div>
-          <Link to="/" style={{ marginRight: '0.75rem', fontSize: 14 }}>返回</Link>
-        </div>
+      <div className="page-header">
+        <div><p className="eyebrow">依照你的習慣</p><h1 className="title">設定</h1></div>
+        <Link className="btn btn-secondary" to="/">返回日記</Link>
       </div>
 
       <div className="list" style={{ marginTop: '1rem' }}>
@@ -351,7 +349,7 @@ export default function SettingsPage() {
               style={{ display: 'none' }}
             />
             <button
-              className="btn btn-primary"
+              className="btn btn-secondary"
               onClick={() => fileInputRef.current?.click()}
               disabled={busyImport || loading}
             >

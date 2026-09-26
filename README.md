@@ -47,12 +47,11 @@ README 最下方亦保留 Day 11–29 的原始開發規劃與功能演進紀錄
 
 [https://github.com/ninni13/MoodJournal](https://github.com/ninni13/MoodJournal)
 
-### Backend / Machine Learning Repository
+### Current Backend / Machine Learning Repository (v2)
 
 [https://github.com/ninni13/MoodJournal-backend-v2](https://github.com/ninni13/MoodJournal-backend-v2)
 
-Backend repository 包含：
-
+The v2 backend includes:
 - M3ED preprocessing
 - MacBERT training
 - WavLM training
@@ -62,6 +61,17 @@ Backend repository 包含：
 - FastAPI inference API
 - Google Cloud Run deployment configuration
 
+### Legacy Backend (v1)
+
+The original version used separate services for text inference, speech inference,
+and multimodal fusion. These repositories are retained for historical reference:
+
+- Text inference: https://github.com/ninni13/MoodJournal_Text-infer
+- Speech inference: https://github.com/ninni13/MoodJournal_Speech-infer
+- Fusion gateway: https://github.com/ninni13/MoodJournal_fusion-gateway
+
+The current production system has been consolidated and redesigned in
+**MoodJournal-backend-v2**.
 ---
 
 ## 目前系統架構

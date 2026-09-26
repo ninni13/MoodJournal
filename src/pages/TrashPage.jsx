@@ -97,11 +97,9 @@ export default function TrashPage() {
 
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="title" style={{ marginBottom: 0 }}>垃圾桶</h1>
-        <div>
-          <Link to="/" style={{ marginRight: '0.75rem', fontSize: 14 }}>返回日記</Link>
-        </div>
+      <div className="page-header">
+        <div><p className="eyebrow">暫時收起的片刻</p><h1 className="title">垃圾桶</h1></div>
+        <Link className="btn btn-secondary" to="/">返回日記</Link>
       </div>
 
       <div className="list">
@@ -115,9 +113,10 @@ export default function TrashPage() {
             {entries.map((e) => (
               <li key={e.id} className="entry">
                 <div className="entry-main">
-                  <span className="entry-date">{formatDisplayDate(e.date)}</span>
-                  <span className="entry-sep">|</span>
-                  <span className="entry-summary">{String(e.content).slice(0, 30)}{String(e.content).length > 30 ? '…' : ''}</span>
+                  <div className="entry-meta">
+                    <span className="entry-date">{formatDisplayDate(e.date)}</span>
+                  </div>
+                  <p className="entry-summary">{String(e.content).slice(0, 60)}{String(e.content).length > 60 ? '…' : ''}</p>
                   <EmotionChip sentiment={e.sentiment} />
                 </div>
                 <div className="entry-actions">

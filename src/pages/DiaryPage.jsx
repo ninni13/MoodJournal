@@ -136,6 +136,8 @@ export default function DiaryPage() {
   const [analysisToast, setAnalysisToast] = useState({ msg: '', kind: 'success' })
   const analysisToastTimerRef = useRef(null)
   const [keepAudio, setKeepAudio] = useState(true)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const userMenuRef = useRef(null)
 
   function showAnalysisToast(msg, kind = 'error', duration = 2800) {
     if (!msg) return
@@ -292,6 +294,23 @@ export default function DiaryPage() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!userMenuOpen) return undefined
+
+    function closeMenu(event) {
+      if (event.type === 'keydown' && event.key !== 'Escape') return
+      if (event.type === 'pointerdown' && userMenuRef.current?.contains(event.target)) return
+      setUserMenuOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeMenu)
+    document.addEventListener('keydown', closeMenu)
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu)
+      document.removeEventListener('keydown', closeMenu)
+    }
+  }, [userMenuOpen])
+
   // 離線：把 IndexedDB 待同步資料拉進列表
   useEffect(() => {
     async function loadPendingIntoList() {
@@ -381,15 +400,15 @@ export default function DiaryPage() {
 
     const hasBlob = audioBlob instanceof Blob && audioBlob.size > 0
     const shouldAttachAudio = keepAudio && hasBlob
-    console.log('[fusion] text len', trimmed.length, 'audio?', shouldAttachAudio, shouldAttachAudio ? audioBlob.type : '(none)', shouldAttachAudio ? audioBlob.size : 0)
-    const data = await predictFusion(
-  trimmed,
-  shouldAttachAudio ? audioBlob : undefined
-)
-    const tokens = Array.isArray(data?.text_top_tokens) ? data.text_top_tokens.slice(0, 5) : []
-
     if (updateState) setAnalyseBusy(true)
     try {
+      console.log('[fusion] text len', trimmed.length, 'audio?', shouldAttachAudio, shouldAttachAudio ? audioBlob.type : '(none)', shouldAttachAudio ? audioBlob.size : 0)
+      const data = await predictFusion(
+        trimmed,
+        shouldAttachAudio ? audioBlob : undefined
+      )
+      const tokens = Array.isArray(data?.text_top_tokens) ? data.text_top_tokens.slice(0, 5) : []
+
       if (updateState) {
         setTextProbs(data?.text_pred || null)
         setAudioProbs(keepAudio ? (data?.audio_pred || null) : null)
@@ -397,6 +416,7 @@ export default function DiaryPage() {
         setFusionTop1(data?.fusion_top1 || '')
         setFusionTokens(tokens)
       }
+      if (showToast) showAnalysisToast('情緒分析完成', 'success', 2000)
       return data
     } catch (err) {
       if (updateState) {
@@ -639,198 +659,248 @@ function describeProbs(probs) {
     }
   }
 
+  const displayName = currentUser?.displayName?.trim()?.split(/\s+/)[0] || '你'
+  const hour = new Date().getHours()
+  const greeting = hour < 11 ? '早安' : hour < 18 ? '午安' : '晚安'
+  const todayLabel = new Intl.DateTimeFormat('zh-TW', {
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  }).format(new Date())
+
   return (
     <div className="container">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 className="title" style={{ marginBottom: 0 }}>霓的情緒日記</h1>
-        <div>
-          <Link to="/settings" style={{ marginRight: '0.75rem', fontSize: 14 }}>設定</Link>
-          <Link to="/trash" style={{ marginRight: '0.75rem', fontSize: 14 }}>垃圾桶</Link>
-          <span style={{ marginRight: '0.75rem', color: '#666', fontSize: 14 }}>{currentUser?.displayName}</span>
-          <button className="btn btn-outline" onClick={logout}>登出</button>
-        </div>
-      </div>
-
-      {isOffline && (
-        <div className="toast toast-error" style={{ position: 'static', marginTop: 8 }}>
-          目前為離線模式，日記會先儲存在本機並於恢復網路後自動同步。
-        </div>
-      )}
-      {!!syncStatus && !isOffline && (
-        <div className="toast toast-success" style={{ position: 'static', marginTop: 8 }}>
-          {syncStatus}
-        </div>
-      )}
-      {analysisToast.msg && (
-        <div className={`toast toast-${analysisToast.kind}`} style={{ position: 'static', marginTop: 8 }}>
-          {analysisToast.msg}
-        </div>
-      )}
-
-      {/* 篩選列 */}
-      <div className="filters">
-        <div className="filters-row">
-          <div className="filter-actions">
-            <button className={`btn ${quickPreset === 'all' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('all')}>全部</button>
-            <button className={`btn ${quickPreset === 'thisMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('thisMonth')}>本月</button>
-            <button className={`btn ${quickPreset === 'lastMonth' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('lastMonth')}>上月</button>
-            <button className={`btn ${quickPreset === 'custom' ? 'btn-outline' : 'btn-secondary'}`} onClick={() => applyPreset('custom')}>自訂</button>
-          </div>
-
-          <input
-            className="input search-inline"
-            type="text"
-            placeholder="搜尋內文（例如：考試、旅行、emo）"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* 自訂日期區間 */}
-      {quickPreset === 'custom' && (
-        <div className="filters-row" style={{ marginTop: 8 }}>
-          <div className="filter-actions" style={{ gap: 8 }}>
-            <input
-              className="input"
-              style={{ maxWidth: 170 }}
-              type="date"
-              value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
-              onChange={(e) => setStartDate(e.target.value ? parseISO(e.target.value) : null)}
-            />
-            <span style={{ color: '#888' }}>到</span>
-            <input
-              className="input"
-              style={{ maxWidth: 170 }}
-              type="date"
-              value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
-              onChange={(e) => setEndDate(e.target.value ? parseISO(e.target.value) : null)}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="editor">
-        <label htmlFor="content" className="label">日記內容</label>
-        <textarea
-          id="content"
-          className="textarea"
-          placeholder="輸入今天的心情..."
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          rows={6}
-        />
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', flexGrow: 1, minWidth: 0 }}>
-            <VoiceInput
-              getContent={() => content}
-              setContent={setContent}
-              onSpeechBusy={setSpeechBusy}
-              onSpeechBlob={(blob, mime) => {
-                if (keepAudio && blob) {
-                  setSpeechBlob(blob || null)
-                  setSpeechMime(mime || '')
-                } else {
-                  setSpeechBlob(null)
-                  setSpeechMime('')
-                }
-              }}
-              resetKey={speechResetKey}
-            />
-          </div>
-          <button
-            className="btn btn-secondary"
-            onClick={handleAnalyseClick}
-            disabled={!canAnalyse}
-          >
-            融合分析
-          </button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={!canSave} style={{ marginLeft: 'auto' }}>儲存</button>
-        </div>
-        {analyseBusy && (
-          <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>融合分析中，請稍候…</div>
-        )}
-        {fusionProbs && (
-          <div style={{ marginTop: 10, padding: '0.75rem', border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb', color: '#1f2937' }}>
-            <div style={{ fontSize: 13, color: '#4b5563', marginBottom: 4 }}>
-              7 類多模態情緒分析
-            </div>
-            <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
-              融合結果：{fusionLabelText[fusionTop1] || '—'}
-            </div>
-            <div style={{ fontSize: 13, color: '#4b5563' }}>文字：{describeProbs(textProbs)}</div>
-            <div style={{ fontSize: 13, color: '#4b5563', marginTop: 2 }}>語音：{describeProbs(audioProbs)}</div>
-            <div style={{ fontSize: 13, color: '#111827', marginTop: 4 }}>融合：{describeProbs(fusionProbs)}</div>
-            {fusionTokens.length > 0 && (
-              <div style={{ marginTop: 8 }}>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>關鍵詞</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {fusionTokens.slice(0, 5).map((t, idx) => (
-                    <span key={idx} className="kw-tag" style={{ background: '#fee2e2', color: '#991b1b' }}>
-                      {typeof t?.text === 'string' ? t.text : String(t)}
-                    </span>
-                  ))}
+      <header className="app-header">
+        <Link to="/" className="brand" aria-label="情緒日記首頁">
+          <img className="brand-mark" src="/icon.png" alt="" aria-hidden="true" />
+          <span>情緒日記</span>
+        </Link>
+        <nav className="top-nav" aria-label="主要導覽">
+          <a className="nav-link active" href="#journal-list">日記</a>
+          <a className="nav-link" href="#insights">情緒趨勢</a>
+          <Link className="nav-link" to="/settings">設定</Link>
+          <div className="user-menu" ref={userMenuRef}>
+            <button
+              className="avatar-button"
+              onClick={() => setUserMenuOpen(open => !open)}
+              aria-label="開啟使用者選單"
+              aria-expanded={userMenuOpen}
+              aria-haspopup="menu"
+            >
+              {displayName.slice(0, 1).toUpperCase()}
+            </button>
+            {userMenuOpen && (
+              <div className="user-menu-popover" role="menu">
+                <div className="user-menu-profile">
+                  <strong>{currentUser?.displayName || '使用者'}</strong>
+                  {currentUser?.email && <span>{currentUser.email}</span>}
                 </div>
+                <button role="menuitem" onClick={logout}>登出</button>
               </div>
             )}
           </div>
-        )}
-      </div>
+        </nav>
+      </header>
 
-      <div className="list">
-        <h2 className="subtitle">{hasActiveFilter ? `${filterTitle()}（篩選後共 ${sortedFiltered.length} 則）` : '所有日記'}</h2>
-        {loading ? (
-          <p className="empty">載入中…</p>
-        ) : sortedFiltered.length === 0 ? (
-          <p className="empty">尚無日記，寫下第一則吧！</p>
-        ) : (
-          <ul className="entries">
-            {sortedFiltered.map((e) => (
-              <li key={e.id} className="entry">
-                <div className="entry-main">
-                  <span className="entry-date">{formatDisplayDate(e.date)}</span>
-                  <span className="entry-sep">|</span>
-                  {editingId === e.id ? (
-                    <textarea
-                      className="textarea"
-                      value={editingText}
-                      onChange={(ev) => setEditingText(ev.target.value)}
-                      rows={4}
-                    />
-                  ) : (
-                    <>
-                      <span className="entry-summary">{summary(e.content)}</span>
-                      <EmotionChip sentiment={e.sentiment} />
-                      {e.localPending && (
-                        <span className="chip chip-pending" title="尚未同步">待同步</span>
-                      )}
-                    </>
+      <main>
+        <section className="welcome-section" aria-labelledby="welcome-title">
+          <p className="eyebrow">{todayLabel}</p>
+          <h1 id="welcome-title" className="welcome-title">{greeting}，{displayName}</h1>
+          <p className="welcome-copy">留一點時間給自己。此刻，你的心情是什麼樣子？</p>
+        </section>
+
+        <section className="composer-card" aria-labelledby="composer-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">今日記錄</p>
+              <h2 id="composer-title">寫下此刻的感受</h2>
+            </div>
+            <span className="privacy-badge">僅你可見</span>
+          </div>
+
+          <div className="editor">
+            <label htmlFor="content" className="sr-only">日記內容</label>
+            <textarea
+              id="content"
+              className="textarea composer-textarea"
+              placeholder="不需要想得太完整，從現在最想說的一句話開始……"
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={6}
+            />
+            <div className="composer-actions">
+              <div className="composer-tools">
+                <VoiceInput
+                  getContent={() => content}
+                  setContent={setContent}
+                  onSpeechBusy={setSpeechBusy}
+                  onSpeechBlob={(blob, mime) => {
+                    if (keepAudio && blob) {
+                      setSpeechBlob(blob || null)
+                      setSpeechMime(mime || '')
+                    } else {
+                      setSpeechBlob(null)
+                      setSpeechMime('')
+                    }
+                  }}
+                  resetKey={speechResetKey}
+                />
+                <button
+                  className="btn btn-secondary"
+                  onClick={handleAnalyseClick}
+                  disabled={!canAnalyse}
+                  aria-busy={analyseBusy}
+                >
+                  {analyseBusy && <span className="analysis-spinner" aria-hidden="true" />}
+                  {analyseBusy ? '分析中…' : '分析此刻的情緒'}
+                </button>
+              </div>
+              <button className="btn btn-primary save-button" onClick={handleSave} disabled={!canSave}>儲存日記</button>
+            </div>
+            {analyseBusy && (
+              <div className="analysis-status" role="status" aria-live="polite">
+                正在分析文字{speechBlob ? '與錄音' : ''}，請稍候…
+              </div>
+            )}
+            {fusionProbs && (
+              <div className="analysis-card">
+                <span className="analysis-kicker">情緒分析</span>
+                <strong>這篇日記主要帶有「{fusionLabelText[fusionTop1] || '尚未分類'}」</strong>
+                <details>
+                  <summary>查看分析細節</summary>
+                  <p>文字：{describeProbs(textProbs)}</p>
+                  <p>語音：{describeProbs(audioProbs)}</p>
+                  <p>綜合：{describeProbs(fusionProbs)}</p>
+                  {fusionTokens.length > 0 && (
+                    <div className="analysis-keywords">
+                      {fusionTokens.slice(0, 5).map((t, idx) => (
+                        <span key={idx} className="kw-tag">
+                          {typeof t?.text === 'string' ? t.text : String(t)}
+                        </span>
+                      ))}
+                    </div>
                   )}
-                </div>
-                {editingId === e.id ? (
-                  <div className="entry-actions">
-                    <button className="btn btn-primary" onClick={() => saveEdit(e.id)}>儲存</button>
-                    <button className="btn btn-secondary" onClick={() => { setEditingId(null); setEditingText('') }}>取消</button>
-                  </div>
-                ) : (
-                  <div className="entry-actions">
-                    <button className="btn btn-outline" onClick={() => startEdit(e.id, e.content)}>編輯</button>
-                    <button className="btn btn-danger" onClick={() => softDelete(e.id)}>刪除</button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-        {error && (
-          <p style={{ color: 'crimson', marginTop: '0.75rem' }}>{error}</p>
-        )}
-      </div>
+                </details>
+              </div>
+            )}
+          </div>
+        </section>
 
-      {/* Insights 區塊 */}
-      <div className="list" style={{ marginTop: '1.5rem' }}>
-        <h2 className="subtitle">情緒視覺化</h2>
-        <EmotionInsights items={sortedFiltered} loading={loading} month={endDate} />
+        <section id="journal-list" className="content-section">
+          <div className="section-heading list-heading">
+            <div>
+              <p className="eyebrow">你的片刻</p>
+              <h2>{hasActiveFilter ? `${filterTitle()}・${sortedFiltered.length} 則` : '最近日記'}</h2>
+            </div>
+            <Link className="trash-link" to="/trash">垃圾桶</Link>
+          </div>
+
+          <div className="journal-toolbar">
+            <div className="filter-actions" role="group" aria-label="日期篩選">
+              <button className={`filter-pill ${quickPreset === 'all' ? 'active' : ''}`} onClick={() => applyPreset('all')}>全部</button>
+              <button className={`filter-pill ${quickPreset === 'thisMonth' ? 'active' : ''}`} onClick={() => applyPreset('thisMonth')}>本月</button>
+              <button className={`filter-pill ${quickPreset === 'lastMonth' ? 'active' : ''}`} onClick={() => applyPreset('lastMonth')}>上月</button>
+              <button className={`filter-pill ${quickPreset === 'custom' ? 'active' : ''}`} onClick={() => applyPreset('custom')}>自訂</button>
+            </div>
+            <label className="search-field">
+              <span aria-hidden="true">⌕</span>
+              <span className="sr-only">搜尋日記</span>
+              <input
+                type="search"
+                placeholder="搜尋日記"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {quickPreset === 'custom' && (
+            <div className="date-range">
+              <input
+                className="input"
+                type="date"
+                value={startDate ? format(startDate, 'yyyy-MM-dd') : ''}
+                onChange={(e) => setStartDate(e.target.value ? parseISO(e.target.value) : null)}
+              />
+              <span>至</span>
+              <input
+                className="input"
+                type="date"
+                value={endDate ? format(endDate, 'yyyy-MM-dd') : ''}
+                onChange={(e) => setEndDate(e.target.value ? parseISO(e.target.value) : null)}
+              />
+            </div>
+          )}
+
+          <div className="list journal-list">
+            {loading ? (
+              <p className="empty">正在翻閱你的日記…</p>
+            ) : sortedFiltered.length === 0 ? (
+              <div className="empty-state"><span aria-hidden="true">✦</span><p>這裡還沒有日記</p><small>從記下一句此刻的感受開始吧。</small></div>
+            ) : (
+              <ul className="entries">
+                {sortedFiltered.map((e) => (
+                  <li key={e.id} className={`entry ${editingId === e.id ? 'editing' : ''}`}>
+                    <div className="entry-main">
+                      <div className="entry-meta">
+                        <time className="entry-date">{formatDisplayDate(e.date)}</time>
+                        {e.localPending && <span className="pending-label">待同步</span>}
+                      </div>
+                      {editingId === e.id ? (
+                        <textarea
+                          className="textarea"
+                          value={editingText}
+                          onChange={(ev) => setEditingText(ev.target.value)}
+                          rows={4}
+                        />
+                      ) : (
+                        <>
+                          <p className="entry-summary">{summary(e.content)}</p>
+                          <EmotionChip sentiment={e.sentiment} />
+                        </>
+                      )}
+                    </div>
+                    {editingId === e.id ? (
+                      <div className="entry-actions">
+                        <button className="btn btn-primary" onClick={() => saveEdit(e.id)}>儲存</button>
+                        <button className="btn btn-secondary" onClick={() => { setEditingId(null); setEditingText('') }}>取消</button>
+                      </div>
+                    ) : (
+                      <div className="entry-actions">
+                        <button className="icon-button" title="編輯日記" aria-label="編輯日記" onClick={() => startEdit(e.id, e.content)}>✎</button>
+                        <button className="icon-button danger" title="移到垃圾桶" aria-label="移到垃圾桶" onClick={() => softDelete(e.id)}>×</button>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {error && <p className="error-message">{error}</p>}
+          </div>
+        </section>
+
+        <section id="insights" className="content-section insights-section">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">回望自己</p>
+              <h2>情緒趨勢</h2>
+            </div>
+          </div>
+          <EmotionInsights items={sortedFiltered} loading={loading} month={endDate} />
+        </section>
+      </main>
+
+      <nav className="mobile-nav" aria-label="手機版導覽">
+        <a href="#composer-title"><span aria-hidden="true">✎</span>今天</a>
+        <a href="#journal-list"><span aria-hidden="true">☷</span>日記</a>
+        <a href="#insights"><span aria-hidden="true">⌁</span>趨勢</a>
+        <Link to="/settings"><span aria-hidden="true">⚙</span>設定</Link>
+      </nav>
+
+      <div className="status-stack">
+        {isOffline && <div className="toast toast-error">目前為離線模式，內容將在恢復網路後同步。</div>}
+        {!!syncStatus && !isOffline && <div className="toast toast-success">{syncStatus}</div>}
+        {analysisToast.msg && <div className={`toast toast-${analysisToast.kind}`}>{analysisToast.msg}</div>}
       </div>
     </div>
   )
@@ -900,6 +970,13 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
     }
     setAudioUrl('')
     setAudioMime('')
+  }
+
+  function removeAudio() {
+    clearAudio()
+    chunksRef.current = []
+    onSpeechBlob?.(null, '')
+    setErr('')
   }
 
   function stopRecorder() {
@@ -1147,15 +1224,18 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
   }
 
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+    <div className="voice-controls">
       <button className={`btn ${listening ? 'btn-danger' : 'btn-secondary'}`} onClick={listening ? stop : start}>
         {listening ? '停止語音輸入' : '開始語音輸入'}
       </button>
       {audioUrl && !listening && (
-        <audio key={audioUrl} controls preload="auto" style={{ height: 32 }}>
-          <source src={audioUrl} type={audioMime || 'audio/webm;codecs=opus'} />
-          您的瀏覽器無法播放錄音檔案。
-        </audio>
+        <div className="audio-preview">
+          <audio key={audioUrl} controls preload="metadata">
+            <source src={audioUrl} type={audioMime || 'audio/webm;codecs=opus'} />
+            您的瀏覽器無法播放錄音檔案。
+          </audio>
+          <button className="remove-audio-button" type="button" onClick={removeAudio}>移除錄音</button>
+        </div>
       )}
       {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>語音輸入中…</span>}
       {err && <span style={{ fontSize: 12, color: 'crimson' }}>{err}</span>}

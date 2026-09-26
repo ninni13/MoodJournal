@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage.jsx'
 import DiaryPage from './pages/DiaryPage.jsx'
 import SettingsPage from './pages/SettingsPage.jsx'
 import TrashPage from './pages/TrashPage.jsx'
+import PrivacyPage from './pages/PrivacyPage.jsx'
+import TermsPage from './pages/TermsPage.jsx'
 
 export default function App() {
   return (
@@ -14,6 +16,8 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

@@ -3,8 +3,8 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 const ThemeCtx = createContext({ mode: 'system', setMode: () => {} })
 
 const THEME_KEY = 'mood.theme'
-const DARK_BG = '#111315'
-const LIGHT_BG = '#f3f4f6' // light gray for light mode
+const DARK_BG = '#191715'
+const LIGHT_BG = '#f7f4ef'
 
 function getSystemTheme() {
   if (typeof window === 'undefined' || !window.matchMedia) return 'light'
