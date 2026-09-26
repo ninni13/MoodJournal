@@ -108,6 +108,7 @@ function sentimentFromFusion(data) {
 export default function DiaryPage() {
   const { currentUser } = useAuth()
   const [content, setContent] = useState('')
+  const [entryDate, setEntryDate] = useState(todayKey())
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -455,6 +456,7 @@ export default function DiaryPage() {
     if (!text || !baseCol) return
     try {
       const id = uuid()
+      const selectedDate = entryDate && entryDate <= todayKey() ? entryDate : todayKey()
 
       let fusionData = null
       try {
@@ -480,7 +482,7 @@ export default function DiaryPage() {
 
       const newData = {
         id,
-        date: todayKey(),
+        date: selectedDate,
         isDeleted: false,
         updatedAt: new Date().toISOString(),
         sentiment,
@@ -498,6 +500,7 @@ export default function DiaryPage() {
 
       // 清理輸入與語音狀態
       setContent('')
+      setEntryDate(todayKey())
       setSpeechBlob(null)
       setSpeechMime('')
       setSpeechResetKey(k => k + 1)
@@ -712,10 +715,21 @@ function describeProbs(probs) {
         <section className="composer-card" aria-labelledby="composer-title">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">今日記錄</p>
-              <h2 id="composer-title">寫下此刻的感受</h2>
+              <p className="eyebrow">{entryDate === todayKey() ? '今日記錄' : '補寫日記'}</p>
+              <h2 id="composer-title">{entryDate === todayKey() ? '寫下此刻的感受' : '補寫這一天的日記'}</h2>
             </div>
-            <span className="privacy-badge">僅你可見</span>
+            <div className="composer-meta">
+              <label className="composer-date">
+                <span>日記日期</span>
+                <input
+                  type="date"
+                  value={entryDate}
+                  max={todayKey()}
+                  onChange={(event) => setEntryDate(event.target.value || todayKey())}
+                />
+              </label>
+              <span className="privacy-badge">僅你可見</span>
+            </div>
           </div>
 
           <div className="editor">

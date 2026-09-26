@@ -607,6 +607,29 @@ input[type="time"].input { padding-right: 0.6rem; }
   font-size: 12px;
   font-weight: 650;
 }
+.composer-meta { display: flex; align-items: center; gap: 10px; }
+.composer-date {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--muted-fg);
+  background: var(--surface-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.composer-date input {
+  width: 124px;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  color: var(--fg);
+  background: transparent;
+  font-size: 12px;
+}
 
 .editor { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
 .editor .textarea, .editor .actions, .editor .label { width: 100%; max-width: none; }
@@ -951,6 +974,10 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--primary); }
   .composer-card { padding: 22px 18px; }
   .content-section { padding: 22px 18px; }
   .privacy-badge { display: none; }
+  .section-heading:has(.composer-date) { align-items: flex-start; flex-direction: column; }
+  .composer-meta, .composer-date { width: 100%; }
+  .composer-date { justify-content: space-between; }
+  .composer-date input { width: auto; }
   .composer-actions { align-items: stretch; flex-direction: column; }
   .composer-tools { align-items: stretch; }
   .composer-tools > * { flex: 1 1 auto; }
