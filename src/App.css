@@ -658,6 +658,11 @@ input[type="time"].input { padding-right: 0.6rem; }
   font-size: 16px;
 }
 .composer-textarea::placeholder { color: var(--subtle-fg); }
+.composer-textarea[readonly] {
+  cursor: wait;
+  opacity: .72;
+}
+.composer-date input:disabled { cursor: wait; opacity: .6; }
 .composer-actions {
   display: flex;
   align-items: center;
@@ -680,6 +685,7 @@ input[type="time"].input { padding-right: 0.6rem; }
   cursor: pointer;
 }
 .remove-audio-button:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, transparent); }
+.remove-audio-button:disabled { opacity: .45; cursor: not-allowed; }
 
 .btn {
   min-height: 40px;

@@ -435,7 +435,7 @@ export default function DiaryPage() {
     }
   }
 
-  const canAnalyse = useMemo(() => content.trim().length > 0 && !analyseBusy, [content, analyseBusy])
+  const canAnalyse = useMemo(() => content.trim().length > 0 && !analyseBusy && !speechBusy, [content, analyseBusy, speechBusy])
   const canSave = useMemo(() => content.trim().length > 0 && !speechBusy && !analyseBusy, [content, speechBusy, analyseBusy])
 
   async function handleAnalyseClick() {
@@ -726,6 +726,7 @@ function describeProbs(probs) {
                   value={entryDate}
                   max={todayKey()}
                   onChange={(event) => setEntryDate(event.target.value || todayKey())}
+                  disabled={analyseBusy}
                 />
               </label>
               <span className="privacy-badge">僅你可見</span>
@@ -740,6 +741,8 @@ function describeProbs(probs) {
               placeholder="不需要想得太完整，從現在最想說的一句話開始……"
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              readOnly={analyseBusy}
+              aria-busy={analyseBusy}
               rows={6}
             />
             <div className="composer-actions">
@@ -758,6 +761,7 @@ function describeProbs(probs) {
                     }
                   }}
                   resetKey={speechResetKey}
+                  disabled={analyseBusy}
                 />
                 <button
                   className="btn btn-secondary"
@@ -927,7 +931,7 @@ function describeProbs(probs) {
  * 2) recognition.onend 自動重啟，確保 Chrome 不會 5~15 秒就停止影響即時文字。
  * 3) 不在錄音結束就打語音情緒 API；只把 Blob 回傳父層，父層在「儲存」時再呼叫 API。
  */
-function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetKey }) {
+function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetKey, disabled = false }) {
   const [recog, setRecog] = useState(null)
   const [listening, setListening] = useState(false)
   const [recording, setRecording] = useState(false)
@@ -1239,7 +1243,7 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
 
   return (
     <div className="voice-controls">
-      <button className={`btn ${listening ? 'btn-danger' : 'btn-secondary'}`} onClick={listening ? stop : start}>
+      <button className={`btn ${listening ? 'btn-danger' : 'btn-secondary'}`} onClick={listening ? stop : start} disabled={disabled && !listening}>
         {listening ? '停止語音輸入' : '開始語音輸入'}
       </button>
       {audioUrl && !listening && (
@@ -1248,7 +1252,7 @@ function VoiceInput({ getContent, setContent, onSpeechBusy, onSpeechBlob, resetK
             <source src={audioUrl} type={audioMime || 'audio/webm;codecs=opus'} />
             您的瀏覽器無法播放錄音檔案。
           </audio>
-          <button className="remove-audio-button" type="button" onClick={removeAudio}>移除錄音</button>
+          <button className="remove-audio-button" type="button" onClick={removeAudio} disabled={disabled}>移除錄音</button>
         </div>
       )}
       {listening && <span style={{ fontSize: 12, color: '#9ca3af' }}>語音輸入中…</span>}
